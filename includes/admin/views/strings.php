@@ -33,9 +33,10 @@ $shdt_result   = $plugin->store()->query(
 );
 $shdt_pages    = max( 1, (int) ceil( $shdt_result['total'] / $shdt_per_page ) );
 $shdt_statuses = array(
-	Store::PENDING => __( 'Waiting', 'shd-translator' ),
-	Store::AUTO    => __( 'Automatic', 'shd-translator' ),
-	Store::MANUAL  => __( 'Edited', 'shd-translator' ),
+	Store::PENDING  => __( 'Waiting', 'shd-translator' ),
+	Store::AUTO     => __( 'Automatic', 'shd-translator' ),
+	Store::OUTDATED => __( 'Being re-translated', 'shd-translator' ),
+	Store::MANUAL   => __( 'Edited', 'shd-translator' ),
 );
 ?>
 <div class="wrap shdt-wrap">

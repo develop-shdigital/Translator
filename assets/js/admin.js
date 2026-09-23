@@ -25,7 +25,12 @@
 			init.headers['Content-Type'] = 'application/json';
 			init.body = JSON.stringify(options.body);
 		}
-		return fetch(cfg.rest + path, init).then(function (r) {
+		// Without pretty permalinks the REST base is "…?rest_route=/shdt/v1/".
+		var url = cfg.rest + path;
+		if (cfg.rest.indexOf('?') !== -1) {
+			url = cfg.rest + path.replace('?', '&');
+		}
+		return fetch(url, init).then(function (r) {
 			return r.json().catch(function () {
 				return {};
 			}).then(function (data) {
@@ -93,6 +98,8 @@
 		return rows ? rows.querySelector('tr[data-code="' + code + '"]') : null;
 	}
 
+	var rowSeq = 0;
+
 	function addRow(code, values) {
 		var existing = rowFor(code);
 		var base = cfg.catalog[code];
@@ -110,7 +117,7 @@
 			});
 			return existing;
 		}
-		var key = 'n' + Date.now() + Math.floor(Math.random() * 1000);
+		var key = 'n' + Date.now() + '_' + (++rowSeq);
 		var html = template.innerHTML
 			.split('__KEY__').join(key)
 			.split('__CODE__').join(code)
@@ -239,6 +246,10 @@
 				status.textContent = t.working;
 				api('strings/' + id + '/retranslate', { method: 'POST' }).then(function (res) {
 					area.value = res.translated;
+					if (res.id) {
+						tr.setAttribute('data-id', res.id);
+					}
+					tr.className = 'shdt-status-1';
 					status.textContent = t.done;
 				}).catch(function (err) {
 					status.textContent = err.message;
@@ -247,7 +258,10 @@
 				if (!window.confirm(t.confirmDelete)) {
 					return;
 				}
-				api('strings/' + id, { method: 'DELETE' }).then(function () {
+				api('strings/' + id, { method: 'DELETE' }).then(function (res) {
+					if (!res.deleted) {
+						throw new Error(t.error);
+					}
 					tr.parentNode.removeChild(tr);
 				}).catch(function (err) {
 					status.textContent = err.message;
@@ -335,6 +349,10 @@
 				api('queue/run', { method: 'POST' }).then(function (res) {
 					total += res.translated;
 					pendingCount.textContent = res.remaining;
+					var upgrading = document.getElementById('shdt-upgrading');
+					if (upgrading && !res.remaining) {
+						upgrading.hidden = true;
+					}
 					queueText.textContent = fmt(t.queueStatus, total, res.remaining);
 					if (res.remaining > 0 && res.translated > 0) {
 						step();
@@ -350,6 +368,11 @@
 				});
 			})();
 		});
+	}
+
+	// Coming from "Re-translate": start working through the queue right away.
+	if (queueBtn && /[?&]autorun=1(&|$)/.test(window.location.search)) {
+		queueBtn.click();
 	}
 
 	/* ---------------------------------------------------------------
@@ -392,11 +415,17 @@
 		});
 	}
 
+	// Google codes → BCP 47 tags for the Chrome Translator API ("zh" alone is Simplified).
+	function chromeCode(code) {
+		var map = { 'zh-TW': 'zh-Hant', 'zh-CN': 'zh-Hans', iw: 'he' };
+		return map[code] || String(code).split('-')[0];
+	}
+
 	function chromeBatch(texts, sl, tl) {
 		if (!('Translator' in window)) {
 			return Promise.reject(new Error('no translator'));
 		}
-		return window.Translator.create({ sourceLanguage: sl.split('-')[0], targetLanguage: tl.split('-')[0] }).then(function (tr) {
+		return window.Translator.create({ sourceLanguage: chromeCode(sl), targetLanguage: chromeCode(tl) }).then(function (tr) {
 			return Promise.all(texts.map(function (text) {
 				return tr.translate(text);
 			}));
@@ -414,7 +443,7 @@
 			(function round() {
 				api('pending?limit=120').then(function (res) {
 					if (!res.rows.length) {
-						browserText.textContent = saved ? fmt(t.browserStatus, saved, res.remaining) : t.noPending;
+						browserText.textContent = saved || res.remaining ? fmt(t.browserStatus, saved, res.remaining) : t.noPending;
 						browserBtn.disabled = false;
 						return null;
 					}
@@ -509,6 +538,8 @@
 				document.body.appendChild(a);
 				a.click();
 				a.remove();
+			}).catch(function (err) {
+				window.alert(err.message);
 			});
 		});
 	}

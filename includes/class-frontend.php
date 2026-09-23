@@ -134,13 +134,33 @@ class Frontend {
 			return $html;
 		}
 
+		// Tokenising needs roughly 30× the page size; rather serve a huge page untranslated than hit a fatal.
+		$limit = function_exists( 'wp_convert_hr_to_bytes' ) ? wp_convert_hr_to_bytes( (string) ini_get( 'memory_limit' ) ) : -1;
+		if ( $limit > 0 && strlen( $html ) * 35 > $limit - memory_get_usage() ) {
+			$this->no_cache();
+			return $html;
+		}
+
 		try {
 			return $this->translate_document( $html );
 		} catch ( \Throwable $e ) {
 			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 				error_log( 'SHD Translator: ' . $e->getMessage() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 			}
+			$this->no_cache();
 			return $html;
+		}
+	}
+
+	/**
+	 * Keep page caches from storing this response.
+	 */
+	private function no_cache() {
+		if ( ! defined( 'DONOTCACHEPAGE' ) ) {
+			define( 'DONOTCACHEPAGE', true );
+		}
+		if ( ! headers_sent() ) {
+			header( 'Cache-Control: no-cache, must-revalidate, max-age=0' );
 		}
 	}
 
@@ -179,27 +199,50 @@ class Frontend {
 			$budget = 55;
 		}
 
+		// One deadline for the whole page view, shared by every translation round.
 		$context = array(
-			'url'    => $router->current_url( $languages->default_code() ),
-			'title'  => wp_strip_all_tags( wp_get_document_title() ),
-			'budget' => $budget,
+			'url'      => $router->current_url( $languages->default_code(), true ),
+			'title'    => wp_strip_all_tags( wp_get_document_title() ),
+			'budget'   => $budget,
+			'deadline' => microtime( true ) + $budget,
 		);
+		$search  = null !== $this->search_term ? Text::normalize( $this->search_term ) : '';
 
 		$processor = new Html_Processor(
 			array(
-				'translate'            => function ( array $keys ) use ( $plugin, $lang, $context ) {
-					return $plugin->translator()->translate_keys( $keys, $lang, $context );
+				'translate'            => function ( array $keys ) use ( $plugin, $lang, $context, $search ) {
+					if ( '' === $search ) {
+						return $plugin->translator()->translate_keys( $keys, $lang, $context );
+					}
+					// Texts that contain the visitor's search term are only looked up, never sent to
+					// an engine or stored ("Results for: <anything>" would flood the engine and the DB).
+					$own   = array();
+					$other = array();
+					foreach ( $keys as $key ) {
+						if ( false !== mb_stripos( $key, $search ) ) {
+							$own[] = $key;
+						} else {
+							$other[] = $key;
+						}
+					}
+					$out = $other ? $plugin->translator()->translate_keys( $other, $lang, $context ) : array();
+					if ( $own ) {
+						$out += $plugin->translator()->translate_keys( $own, $lang, array_merge( $context, array( 'engine' => false, 'queue' => false ) ) );
+					}
+					return $out;
 				},
 				'localize_url'         => function ( $url ) use ( $router, $lang ) {
 					return $router->localize_url( $url, $lang );
 				},
 				'html_lang'            => $languages->hreflang( $lang ),
 				'rtl'                  => ! empty( $entry['rtl'] ),
-				'og_locale'            => $entry ? $entry['locale'] : '',
-				'selector'             => new Selector( $settings->lines( 'exclude_selectors', true ) ),
+				'og_locale'            => $entry ? Languages::locale_tag( $entry['locale'], '_' ) : '',
+				'selector'             => new Selector( $settings->lines( 'exclude_selectors' ) ),
 				'translate_meta'       => $settings->on( 'translate_meta' ),
 				'translate_attributes' => $settings->on( 'translate_attributes' ),
 				'json_keys'            => apply_filters( 'shdt_json_keys', array( 'rotating_text' ) ),
+				// "?lang=" mode: GET forms (search) must carry the language themselves.
+				'form_fields'          => 'query' === $router->mode() && $entry ? array( 'lang' => $entry['slug'] ) : array(),
 			)
 		);
 
@@ -207,11 +250,8 @@ class Frontend {
 
 		if ( $processor->missing() > 0 || $this->is_editor() ) {
 			// Do not let page caches keep a half translated page.
-			if ( ! defined( 'DONOTCACHEPAGE' ) ) {
-				define( 'DONOTCACHEPAGE', true );
-			}
+			$this->no_cache();
 			if ( ! headers_sent() ) {
-				header( 'Cache-Control: no-cache, must-revalidate, max-age=0' );
 				header( 'X-SHDT-Pending: ' . (int) $processor->missing() );
 			}
 		}
@@ -275,7 +315,7 @@ class Frontend {
 
 		$urls = array();
 		foreach ( $languages->active() as $code => $lang ) {
-			$urls[ $code ] = $plugin->router()->current_url( $code );
+			$urls[ $code ] = $plugin->router()->current_url( $code, true );
 		}
 
 		if ( $plugin->settings()->on( 'hreflang' ) && ! is_search() ) {
@@ -366,7 +406,7 @@ class Frontend {
 				array(
 					'lang'     => $languages->current(),
 					'endpoint' => esc_url_raw( rest_url( 'shdt/v1/translate' ) ),
-					'skip'     => implode( ',', array_merge( array( '[translate="no"]', '.notranslate', '#wpadminbar', '[data-shdt-switcher]', 'script', 'style', 'code', 'pre', 'textarea', 'svg' ), $this->plugin->settings()->lines( 'exclude_selectors', true ) ) ),
+					'skip'     => array_merge( array( '[translate="no"]', '.notranslate', '#wpadminbar', '[data-shdt-switcher]', 'script', 'style', 'code', 'pre', 'textarea', 'svg' ), ( new Selector( $this->plugin->settings()->lines( 'exclude_selectors' ) ) )->valid() ),
 				)
 			);
 		}
@@ -474,8 +514,10 @@ class Frontend {
 		if ( empty( $vars['s'] ) || ! is_string( $vars['s'] ) || is_admin() || ! $languages->is_translated_request() || ! $this->plugin->settings()->on( 'search_translate' ) ) {
 			return $vars;
 		}
-		$this->search_term = $vars['s'];
-		$vars['s']         = $this->plugin->translator()->reverse( $vars['s'], $languages->current() );
+		// Query vars are still slashed here (magic quotes); WP_Query unslashes later.
+		$raw               = wp_unslash( $vars['s'] );
+		$this->search_term = $raw;
+		$vars['s']         = wp_slash( $this->plugin->translator()->reverse( $raw, $languages->current() ) );
 		return $vars;
 	}
 

@@ -39,21 +39,109 @@
 			return String(text || '').replace(/<\/?x\d+\/?>/g, '').replace(/\s+/g, ' ').trim();
 		}
 
+		var TAG = /<\/?x\d+\/?>/g;
+		var ATTRS = ['alt', 'title', 'placeholder', 'aria-label'];
+
+		function squash(text) {
+			return String(text || '').replace(/\s+/g, ' ').trim();
+		}
+
+		function inEditor(node) {
+			var parent = node.nodeType === 1 ? node : node.parentElement;
+			return !parent || !!parent.closest('.shdt-editor');
+		}
+
+		// Text nodes of an element in document order, whitespace-only ones left out.
+		function textNodes(root) {
+			var out = [];
+			var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+			var node = walker.nextNode();
+			while (node) {
+				if (node.nodeValue.trim() !== '') {
+					out.push(node);
+				}
+				node = walker.nextNode();
+			}
+			return out;
+		}
+
+		// A sentence with links or formatting: put the new words into the text
+		// nodes between the tags, when the tags kept their order.
+		function replaceRun(before, after) {
+			var oldTags = before.match(TAG) || [];
+			var newTags = after.match(TAG) || [];
+			var oldParts = before.split(TAG);
+			var newParts = after.split(TAG);
+			if (oldTags.join() !== newTags.join() || oldParts.length !== newParts.length) {
+				return false;
+			}
+			var target = plain(before);
+			var hits = Array.prototype.filter.call(document.body.querySelectorAll('*'), function (node) {
+				return !inEditor(node) && squash(node.textContent) === target;
+			});
+			var done = false;
+			hits.forEach(function (node) {
+				// Only the innermost element holding the whole sentence.
+				if (hits.some(function (other) { return other !== node && node.contains(other); })) {
+					return;
+				}
+				var nodes = textNodes(node);
+				var used = oldParts.filter(function (part) { return part.trim() !== ''; });
+				if (nodes.length !== used.length) {
+					return;
+				}
+				for (var i = 0; i < oldParts.length; i++) {
+					if (oldParts[i].trim() === '') {
+						continue;
+					}
+					if (newParts[i].trim() === '') {
+						return; // Words moved across a tag: shown after a reload.
+					}
+				}
+				for (var j = 0, k = 0; j < oldParts.length; j++) {
+					if (oldParts[j].trim() !== '') {
+						var v = nodes[k++].nodeValue;
+						nodes[k - 1].nodeValue = v.match(/^\s*/)[0] + newParts[j].trim() + v.match(/\s*$/)[0];
+					}
+				}
+				done = true;
+			});
+			return done;
+		}
+
 		function replaceOnPage(before, after) {
-			before = plain(before);
-			after = plain(after);
-			if (!before || before === after) {
+			var from = plain(before);
+			var to = plain(after);
+			if (!from || (from === to && before === after)) {
+				return;
+			}
+			if (/<\/?x\d+\/?>/.test(before)) {
+				replaceRun(before, after);
 				return;
 			}
 			var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
 			var node = walker.nextNode();
 			while (node) {
-				if (!node.parentElement.closest('.shdt-editor') && node.nodeValue.replace(/\s+/g, ' ').trim() === before) {
+				if (!inEditor(node) && squash(node.nodeValue) === from) {
 					var v = node.nodeValue;
-					node.nodeValue = v.match(/^\s*/)[0] + after + v.match(/\s*$/)[0];
+					node.nodeValue = v.match(/^\s*/)[0] + to + v.match(/\s*$/)[0];
 				}
 				node = walker.nextNode();
 			}
+			Array.prototype.forEach.call(document.body.querySelectorAll('[alt],[title],[placeholder],[aria-label],input[type=submit],input[type=button]'), function (elem) {
+				if (inEditor(elem)) {
+					return;
+				}
+				ATTRS.forEach(function (name) {
+					var value = elem.getAttribute(name);
+					if (value !== null && squash(value) === from) {
+						elem.setAttribute(name, to);
+					}
+				});
+				if (elem.tagName === 'INPUT' && squash(elem.value) === from) {
+					elem.value = to;
+				}
+			});
 		}
 
 		var panel = el('aside', 'shdt-editor notranslate');

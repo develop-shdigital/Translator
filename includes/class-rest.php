@@ -147,26 +147,44 @@ class Rest {
 		$known = $this->plugin->store()->known_translations( $lang, array_keys( $hashes ) );
 		$keys  = array_values( array_diff( $keys, array_intersect_key( $hashes, $known ) ) );
 
-		// Daily cap on brand-new strings coming from browsers.
-		$day_key = 'shdt_dyn_' . gmdate( 'Ymd' );
-		$today   = (int) get_transient( $day_key );
-		$engine  = $today < (int) apply_filters( 'shdt_dynamic_daily_limit', 5000 );
+		// Daily cap on brand-new strings coming from browsers. Only real misses
+		// count, and they are reserved before the (slow) engine call so that
+		// parallel requests cannot all pass the check at once.
+		$store  = $this->plugin->store();
+		$rows   = $store->get_many( $lang, array_map( array( Store::class, 'hash' ), $keys ) );
+		$misses = 0;
+		foreach ( $keys as $key ) {
+			$hash = Store::hash( $key );
+			if ( ! isset( $rows[ $hash ] ) || (int) $rows[ $hash ]['status'] <= Store::PENDING ) {
+				++$misses;
+			}
+		}
+		$engine = true;
+		if ( $misses ) {
+			$day_key = 'shdt_dyn_' . gmdate( 'Ymd' );
+			$today   = (int) get_transient( $day_key );
+			$engine  = $today < (int) apply_filters( 'shdt_dynamic_daily_limit', 5000 );
+			if ( $engine ) {
+				set_transient( $day_key, $today + $misses, DAY_IN_SECONDS );
+			}
+		}
 
 		$page = wp_get_referer();
 		if ( $page ) {
 			$local = $this->plugin->router()->localize_url( $page, $languages->default_code() );
 			$page  = esc_url_raw( is_string( $local ) ? $local : $page );
 		}
-		$result = $keys ? $this->plugin->translator()->translate_keys(
+		$result = $this->plugin->translator()->translate_keys(
 			$keys,
 			$lang,
 			array(
-				'url'    => $page ? $page : '',
-				'budget' => 10,
-				'engine' => $engine,
-				'queue'  => $engine,
+				'url'     => $page ? $page : '',
+				'budget'  => 10,
+				'engine'  => $engine,
+				'queue'   => $engine,
+				'isolate' => true,
 			)
-		) : array();
+		);
 
 		$out = array();
 		foreach ( $result as $key => $value ) {
@@ -174,10 +192,6 @@ class Rest {
 				$out[ $key ] = $value;
 			}
 		}
-		if ( $engine ) {
-			set_transient( $day_key, $today + count( $keys ), DAY_IN_SECONDS );
-		}
-
 		return rest_ensure_response( array( 'translations' => $out ? $out : new \stdClass() ) );
 	}
 
@@ -305,8 +319,10 @@ class Rest {
 		$store->delete_rows( array( (int) $row['id'] ) );
 		$this->plugin->translator()->save( $row['lang'], $results, $row['url'] );
 		$rows = $store->get_many( $row['lang'], array( Store::hash( $row['original'] ) ) );
+		$new  = $rows ? reset( $rows ) : null;
 		return rest_ensure_response(
 			array(
+				'id'         => $new ? $new['id'] : 0, // The row was saved again under a new id.
 				'translated' => false === $results[ $row['original'] ] ? '' : $results[ $row['original'] ],
 				'rows'       => $rows,
 			)
@@ -436,7 +452,7 @@ class Rest {
 	 * @return \WP_REST_Response
 	 */
 	public function run_queue() {
-		list( $done, $failed, $remaining ) = $this->plugin->queue()->run( 20 );
+		list( $done, $failed, $remaining ) = $this->plugin->queue()->run( 25 );
 		return rest_ensure_response(
 			array(
 				'translated' => $done,
@@ -456,11 +472,12 @@ class Rest {
 	public function pending( \WP_REST_Request $request ) {
 		$languages = $this->plugin->languages();
 		$source    = $languages->get( $languages->default_code() );
-		$rows      = $this->plugin->store()->get_pending( max( 1, min( 200, absint( $request->get_param( 'limit' ) ? $request->get_param( 'limit' ) : 100 ) ) ) );
+		// Only texts without any translation: re-translations need the selected engine.
+		$rows      = $this->plugin->store()->get_pending( max( 1, min( 200, absint( $request->get_param( 'limit' ) ? $request->get_param( 'limit' ) : 100 ) ) ), array( Store::PENDING ) );
 		$out       = array();
 		foreach ( $rows as $row ) {
 			$target = $languages->get( $row['lang'] );
-			if ( ! $target || $languages->is_default( $row['lang'] ) ) {
+			if ( ! $target ) {
 				continue;
 			}
 			$out[] = array(
@@ -474,7 +491,7 @@ class Rest {
 		return rest_ensure_response(
 			array(
 				'rows'      => $out,
-				'remaining' => $this->plugin->store()->count_pending(),
+				'remaining' => $this->plugin->store()->count_pending( array( Store::PENDING ) ),
 			)
 		);
 	}
@@ -521,25 +538,18 @@ class Rest {
 		return rest_ensure_response(
 			array(
 				'saved'     => $saved,
-				'remaining' => $store->count_pending(),
+				'remaining' => $store->count_pending( array( Store::PENDING ) ),
 			)
 		);
 	}
 
 	/**
-	 * Engines currently paused.
+	 * Engines currently paused (whole engine or single languages).
 	 *
 	 * @return array
 	 */
 	private function paused_engines() {
-		$out = array();
-		foreach ( array_keys( Translator::engine_classes() ) as $id ) {
-			$pause = $this->plugin->translator()->paused( $id );
-			if ( $pause ) {
-				$out[ $id ] = $pause;
-			}
-		}
-		return $out;
+		return $this->plugin->translator()->pauses();
 	}
 
 	/**

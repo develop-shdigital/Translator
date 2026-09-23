@@ -144,8 +144,59 @@
 	transform: translateY(4px);
 }
 
+.shdt-switcher--align-center.shdt-switcher--up .shdt-switcher__menu {
+	transform: translate(-50%, 4px);
+}
+
+/* Set by switcher.js when the list is taller than the space on screen. */
+.shdt-switcher--scroll .shdt-switcher__menu {
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+
+/* Theme menus style nested lists and links (e.g. hidden sub-menus in
+   Hello Elementor); keep the switcher's own look inside them. */
+.shdt-menu-item .shdt-switcher .shdt-switcher__menu {
+	display: block;
+	top: calc(100% + var(--shdt-offset));
+	right: 0;
+	left: auto;
+	min-width: 200px;
+	max-width: none;
+	background: var(--shdt-menu-bg);
+}
+
+.shdt-menu-item .shdt-switcher .shdt-switcher__li {
+	border: 0;
+}
+
+.shdt-menu-item .shdt-switcher .shdt-switcher__item {
+	display: flex;
+	padding: 10px 14px;
+	color: var(--shdt-item-color);
+}
+
+.shdt-menu-item .shdt-switcher .shdt-switcher__item:hover,
+.shdt-menu-item .shdt-switcher .shdt-switcher__item:focus-visible {
+	color: var(--shdt-item-hover-color);
+}
+
+.shdt-menu-item .shdt-switcher .shdt-switcher__item.is-active {
+	color: var(--shdt-active-color);
+}
+
+/* Right to left: "right" and "left" mean the reading direction's end and start. */
+[dir="rtl"] .shdt-switcher--align-right .shdt-switcher__menu {
+	right: auto;
+	left: 0;
+}
+
+[dir="rtl"] .shdt-switcher--align-left .shdt-switcher__menu {
+	left: auto;
+	right: 0;
+}
+
 .shdt-switcher.is-open .shdt-switcher__menu,
-.shdt-switcher--hover:hover .shdt-switcher__menu,
 html:not(.shdt-js) .shdt-switcher:focus-within .shdt-switcher__menu {
 	opacity: 1;
 	visibility: visible;
@@ -153,9 +204,22 @@ html:not(.shdt-js) .shdt-switcher:focus-within .shdt-switcher__menu {
 	transition: opacity .15s ease, transform .15s ease;
 }
 
-.shdt-switcher--align-center.is-open .shdt-switcher__menu,
-.shdt-switcher--align-center.shdt-switcher--hover:hover .shdt-switcher__menu {
+.shdt-switcher--align-center.is-open .shdt-switcher__menu {
 	transform: translate(-50%, 0);
+}
+
+/* Hover only where there is a real pointer; touch uses the click toggle. */
+@media (hover: hover) {
+	.shdt-switcher--hover:hover .shdt-switcher__menu {
+		opacity: 1;
+		visibility: visible;
+		transform: translateY(0);
+		transition: opacity .15s ease, transform .15s ease;
+	}
+
+	.shdt-switcher--align-center.shdt-switcher--hover:hover .shdt-switcher__menu {
+		transform: translate(-50%, 0);
+	}
 }
 
 /* Flipped by switcher.js when the menu would leave the viewport. */
@@ -274,11 +338,6 @@ html:not(.shdt-js) .shdt-switcher:focus-within .shdt-switcher__menu {
 	overflow: hidden;
 	clip: rect(1px, 1px, 1px, 1px);
 	white-space: nowrap;
-}
-
-[dir="rtl"] .shdt-switcher__menu {
-	right: auto;
-	left: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

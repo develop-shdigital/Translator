@@ -8,23 +8,36 @@
 
 defined( 'ABSPATH' ) || exit;
 
+use SHDT\Admin\Admin;
+use SHDT\Store;
 use SHDT\Translator;
 
 $shdt_tab       = 'shd-translator-tools';
 $shdt_languages = $plugin->languages();
 $shdt_pending   = $plugin->store()->count_pending();
+$shdt_missing   = $plugin->store()->count_pending( array( Store::PENDING ) );
+$shdt_upgrading = $shdt_pending - $shdt_missing;
 $shdt_error     = get_option( 'shdt_last_error' );
-$shdt_paused    = array();
-foreach ( array_keys( Translator::engine_classes() ) as $shdt_id ) {
-	$shdt_p = $plugin->translator()->paused( $shdt_id );
-	if ( $shdt_p ) {
-		$shdt_engine                = $plugin->translator()->engine( $shdt_id );
-		$shdt_paused[ $shdt_id ] = array( $shdt_engine ? $shdt_engine->label() : $shdt_id, $shdt_p );
-	}
-}
+$shdt_paused    = $plugin->translator()->pauses();
+$shdt_primary   = $plugin->translator()->engine( $plugin->translator()->primary_id() );
+$shdt_others    = $plugin->store()->count_other_engine( Translator::equivalent_ids( $plugin->translator()->primary_id() ) );
 ?>
 <div class="wrap shdt-wrap">
 	<?php require __DIR__ . '/header.php'; ?>
+
+	<?php if ( isset( $_GET['retranslate'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
+		<div class="notice notice-success is-dismissible"><p>
+			<?php
+			$shdt_n = absint( $_GET['retranslate'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			echo esc_html(
+				$shdt_n
+					/* translators: 1: number of texts, 2: engine name */
+					? sprintf( _n( '%1$s text is being re-translated with %2$s. The current text stays online until the new one is ready.', '%1$s texts are being re-translated with %2$s. The current texts stay online until the new ones are ready.', $shdt_n, 'shd-translator' ), number_format_i18n( $shdt_n ), $shdt_primary ? $shdt_primary->label() : '' )
+					: __( 'Nothing to re-translate: all automatic translations already come from the selected engine.', 'shd-translator' )
+			);
+			?>
+		</p></div>
+	<?php endif; ?>
 
 	<?php if ( isset( $_GET['packs'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
 		<div class="notice notice-success is-dismissible"><p>
@@ -55,6 +68,14 @@ foreach ( array_keys( Translator::engine_classes() ) as $shdt_id ) {
 				<p><?php esc_html_e( 'Texts that could not be translated during a page view are finished in the background automatically. You can also do it right now.', 'shd-translator' ); ?></p>
 			</div>
 			<p class="shdt-big"><span id="shdt-pending-count"><?php echo esc_html( number_format_i18n( $shdt_pending ) ); ?></span> <?php esc_html_e( 'waiting', 'shd-translator' ); ?></p>
+			<?php if ( $shdt_upgrading > 0 ) : ?>
+				<p class="shdt-muted" id="shdt-upgrading">
+					<?php
+					/* translators: 1: texts without translation, 2: texts being re-translated */
+					echo esc_html( sprintf( __( '%1$s without translation yet, %2$s being re-translated (their current translation stays online meanwhile).', 'shd-translator' ), number_format_i18n( $shdt_missing ), number_format_i18n( $shdt_upgrading ) ) );
+					?>
+				</p>
+			<?php endif; ?>
 			<p>
 				<button type="button" class="button button-primary" id="shdt-queue-run"><?php esc_html_e( 'Translate now', 'shd-translator' ); ?></button>
 				<span class="shdt-queue__text" aria-live="polite"></span>
@@ -76,12 +97,12 @@ foreach ( array_keys( Translator::engine_classes() ) as $shdt_id ) {
 				<ul class="shdt-list">
 					<?php foreach ( $shdt_paused as $shdt_item ) : ?>
 						<li>
-							<strong><?php echo esc_html( $shdt_item[0] ); ?></strong> –
+							<strong><?php echo esc_html( $shdt_item['label'] . ( null === $shdt_item['lang'] ? '' : ' (' . $shdt_item['lang'] . ')' ) ); ?></strong> –
 							<?php
 							/* translators: %s: human time difference */
-							echo esc_html( sprintf( __( 'paused for %s:', 'shd-translator' ), human_time_diff( time(), (int) $shdt_item[1]['until'] ) ) );
+							echo esc_html( sprintf( __( 'paused for %s:', 'shd-translator' ), human_time_diff( time(), max( time() + 60, $shdt_item['until'] ) ) ) );
 							?>
-							<?php echo esc_html( $shdt_item[1]['message'] ); ?>
+							<?php echo esc_html( $shdt_item['message'] ); ?>
 						</li>
 					<?php endforeach; ?>
 				</ul>
@@ -97,6 +118,7 @@ foreach ( array_keys( Translator::engine_classes() ) as $shdt_id ) {
 					?>
 				</p>
 			<?php endif; ?>
+			<?php if ( current_user_can( 'install_languages' ) ) : ?>
 			<hr>
 			<h3><?php esc_html_e( 'WordPress language packs', 'shd-translator' ); ?></h3>
 			<p><?php esc_html_e( 'Installs the official WordPress translations for your languages, so dates and texts from WordPress itself are translated natively.', 'shd-translator' ); ?></p>
@@ -105,6 +127,7 @@ foreach ( array_keys( Translator::engine_classes() ) as $shdt_id ) {
 				<?php wp_nonce_field( 'shdt_install_packs' ); ?>
 				<button class="button"><?php esc_html_e( 'Install missing language packs', 'shd-translator' ); ?></button>
 			</form>
+			<?php endif; ?>
 		</section>
 
 		<section class="shdt-card">
@@ -126,6 +149,24 @@ foreach ( array_keys( Translator::engine_classes() ) as $shdt_id ) {
 				<button type="button" class="button" id="shdt-import"><?php esc_html_e( 'Import', 'shd-translator' ); ?></button>
 				<span class="shdt-import__text" aria-live="polite"></span>
 			</p>
+		</section>
+
+		<section class="shdt-card">
+			<div class="shdt-card__head">
+				<h2><?php esc_html_e( 'Re-translate with the current engine', 'shd-translator' ); ?></h2>
+				<p><?php esc_html_e( 'Translations are stored and reused. After switching to a better engine, redo the automatic translations made by other engines. Visitors keep seeing the current texts until the new ones are ready; manual edits and imports are never touched.', 'shd-translator' ); ?></p>
+			</div>
+			<p class="shdt-big">
+				<?php
+				/* translators: 1: number of texts, 2: engine name */
+				echo esc_html( sprintf( _n( '%1$s text made by another engine than %2$s', '%1$s texts made by other engines than %2$s', $shdt_others, 'shd-translator' ), number_format_i18n( $shdt_others ), $shdt_primary ? $shdt_primary->label() : '' ) );
+				?>
+			</p>
+			<?php if ( $shdt_others > 0 && $shdt_primary && $shdt_primary->is_available() ) : ?>
+				<p><?php echo Admin::action_button( 'shdt_retranslate', __( 'Re-translate them now', 'shd-translator' ), 'button button-primary' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped in action_button(). ?></p>
+			<?php elseif ( $shdt_others > 0 ) : ?>
+				<p class="shdt-muted"><?php esc_html_e( 'Set up the selected engine (API key) under Languages & Settings first.', 'shd-translator' ); ?></p>
+			<?php endif; ?>
 		</section>
 
 		<section class="shdt-card shdt-card--danger">

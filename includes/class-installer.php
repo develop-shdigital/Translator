@@ -46,6 +46,23 @@ class Installer {
 	}
 
 	/**
+	 * Language of the current site. On multisite get_locale() keeps returning
+	 * the main site's locale after switch_to_blog(), so read the site option.
+	 *
+	 * @return string
+	 */
+	private static function site_locale() {
+		if ( ! is_multisite() ) {
+			return get_locale();
+		}
+		$locale = get_option( 'WPLANG' );
+		if ( false === $locale ) {
+			$locale = get_site_option( 'WPLANG' );
+		}
+		return $locale ? (string) $locale : 'en_US';
+	}
+
+	/**
 	 * Create table and default settings.
 	 */
 	public static function install() {
@@ -80,7 +97,7 @@ class Installer {
 
 		// First install: sensible defaults based on the site language.
 		if ( false === get_option( Settings::OPTION, false ) ) {
-			$locale  = get_locale();
+			$locale  = self::site_locale();
 			$code    = Languages::code_from_locale( $locale );
 			$entry   = Languages::make_entry( $code, $locale );
 			$targets = array();

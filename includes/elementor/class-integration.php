@@ -16,7 +16,7 @@ class Integration {
 	 */
 	public function hooks() {
 		add_action( 'elementor/widgets/register', array( $this, 'register' ) );
-		add_action( 'elementor/widgets/widgets_registered', array( $this, 'register_legacy' ) );
+		add_action( 'plugins_loaded', array( $this, 'legacy_hooks' ) );
 		add_action( 'elementor/elements/categories_registered', array( $this, 'category' ) );
 		add_action( 'elementor/preview/enqueue_styles', array( $this, 'preview_assets' ) );
 	}
@@ -31,15 +31,24 @@ class Integration {
 	}
 
 	/**
+	 * Elementor before 3.5 only has the old registration hook. Newer versions
+	 * still fire it (deprecated), so it is only used where it is needed.
+	 */
+	public function legacy_hooks() {
+		if ( defined( 'ELEMENTOR_VERSION' ) && version_compare( ELEMENTOR_VERSION, '3.5.0', '<' ) ) {
+			add_action( 'elementor/widgets/widgets_registered', array( $this, 'register_legacy' ) );
+		}
+	}
+
+	/**
 	 * Register the widget on Elementor versions before 3.5.
 	 *
 	 * @param \Elementor\Widgets_Manager $manager Widgets manager.
 	 */
 	public function register_legacy( $manager ) {
-		if ( did_action( 'elementor/widgets/register' ) || ! method_exists( $manager, 'register_widget_type' ) ) {
-			return;
+		if ( method_exists( $manager, 'register_widget_type' ) ) {
+			$manager->register_widget_type( new Switcher_Widget() );
 		}
-		$manager->register_widget_type( new Switcher_Widget() );
 	}
 
 	/**

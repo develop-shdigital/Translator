@@ -11,9 +11,16 @@ defined( 'ABSPATH' ) || exit;
 
 class Store {
 
-	const PENDING = 0;
-	const AUTO    = 1;
-	const MANUAL  = 2;
+	const PENDING  = 0;
+	const AUTO     = 1;
+	const MANUAL   = 2;
+	const OUTDATED = 3; // Shown to visitors, but queued to be redone by the current engine.
+
+	/**
+	 * Engine value of pending rows that came from visitors' browsers (dynamic
+	 * content): the queue sends them to AI engines one at a time.
+	 */
+	const VISITOR = 'visitor';
 
 	/**
 	 * Table name.
@@ -61,9 +68,10 @@ class Store {
 			$in   = implode( ',', array_fill( 0, count( $chunk ), '%s' ) );
 			$args = array_merge( array( $lang ), $chunk );
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-			$rows = $wpdb->get_results( $wpdb->prepare( "SELECT hash, translated, status FROM {$table} WHERE lang = %s AND hash IN ({$in})", $args ), ARRAY_A );
+			$rows = $wpdb->get_results( $wpdb->prepare( "SELECT id, hash, translated, status FROM {$table} WHERE lang = %s AND hash IN ({$in})", $args ), ARRAY_A );
 			foreach ( (array) $rows as $row ) {
 				$out[ $row['hash'] ] = array(
+					'id'         => (int) $row['id'],
 					'translated' => $row['translated'],
 					'status'     => (int) $row['status'],
 				);
@@ -76,7 +84,7 @@ class Store {
 	 * Store machine translations. Never overwrites manual edits.
 	 *
 	 * @param string $lang  Language.
-	 * @param array  $items List of [ original, translated, engine, url ].
+	 * @param array  $items List of [ original, translated, engine, url, status (AUTO|OUTDATED) ].
 	 */
 	public function save_many( $lang, array $items ) {
 		global $wpdb;
@@ -98,7 +106,7 @@ class Store {
 					$item['original'],
 					$item['translated'],
 					self::hash( Text::normalize( $item['translated'] ) ),
-					self::AUTO,
+					isset( $item['status'] ) && self::OUTDATED === $item['status'] ? self::OUTDATED : self::AUTO,
 					isset( $item['engine'] ) ? substr( (string) $item['engine'], 0, 32 ) : '',
 					isset( $item['url'] ) ? substr( (string) $item['url'], 0, 255 ) : '',
 					$now,
@@ -111,6 +119,8 @@ class Store {
 				. ' translated = IF(status = 2, translated, VALUES(translated)),'
 				. ' thash = IF(status = 2, thash, VALUES(thash)),'
 				. ' engine = IF(status = 2, engine, VALUES(engine)),'
+				. ' attempts = IF(status = 2, attempts, 0),'
+				// Assignments run left to right: status stays last so the IFs above still see the old value.
 				. ' status = IF(status = 2, 2, VALUES(status)),'
 				. ' updated_at = VALUES(updated_at)';
 			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
@@ -124,8 +134,9 @@ class Store {
 	 * @param string   $lang      Language.
 	 * @param string[] $originals Normalised originals.
 	 * @param string   $url       Page where they were seen.
+	 * @param string   $source    Store::VISITOR for text sent by browsers, '' otherwise.
 	 */
-	public function add_pending( $lang, array $originals, $url = '' ) {
+	public function add_pending( $lang, array $originals, $url = '', $source = '' ) {
 		global $wpdb;
 		if ( ! $originals ) {
 			return;
@@ -136,43 +147,112 @@ class Store {
 			$values = array();
 			$args   = array();
 			foreach ( $chunk as $original ) {
-				$values[] = '(%s,%s,%s,NULL,%d,%s,%s,%s)';
-				array_push( $args, $lang, self::hash( $original ), $original, self::PENDING, substr( (string) $url, 0, 255 ), $now, $now );
+				$values[] = '(%s,%s,%s,NULL,%d,%s,%s,%s,%s)';
+				array_push( $args, $lang, self::hash( $original ), $original, self::PENDING, substr( (string) $source, 0, 32 ), substr( (string) $url, 0, 255 ), $now, $now );
 			}
-			$sql = "INSERT IGNORE INTO {$table} (lang,hash,original,translated,status,url,created_at,updated_at) VALUES " . implode( ',', $values );
+			$sql = "INSERT IGNORE INTO {$table} (lang,hash,original,translated,status,engine,url,created_at,updated_at) VALUES " . implode( ',', $values );
 			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 			$wpdb->query( $wpdb->prepare( $sql, $args ) );
 		}
 	}
 
 	/**
-	 * Pending rows for the background queue.
+	 * Rows for the background queue: missing translations first, then outdated ones.
 	 *
-	 * @param int         $limit Max rows.
-	 * @param string|null $lang  Language filter.
-	 * @return array
+	 * @param int      $limit    Max rows.
+	 * @param int[]    $statuses PENDING and/or OUTDATED.
+	 * @param string[] $langs    Languages; null = the active target languages
+	 *                           (rows of removed languages wait until they are added again).
+	 * @return array id, lang, original, status, engine
 	 */
-	public function get_pending( $limit = 200, $lang = null ) {
+	public function get_pending( $limit = 200, array $statuses = array( self::PENDING, self::OUTDATED ), $langs = null ) {
 		global $wpdb;
 		$table = self::table();
-		if ( $lang ) {
-			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-			return (array) $wpdb->get_results( $wpdb->prepare( "SELECT id, lang, original FROM {$table} WHERE status = 0 AND lang = %s AND attempts < 5 ORDER BY attempts ASC, id ASC LIMIT %d", $lang, $limit ), ARRAY_A );
-		}
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		return (array) $wpdb->get_results( $wpdb->prepare( "SELECT id, lang, original FROM {$table} WHERE status = 0 AND attempts < 5 ORDER BY attempts ASC, id ASC LIMIT %d", $limit ), ARRAY_A );
+		$where = self::pending_where( $statuses, $langs );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $where is prepared in pending_where().
+		return (array) $wpdb->get_results( $wpdb->prepare( "SELECT id, lang, original, status, engine FROM {$table} WHERE {$where} ORDER BY status ASC, attempts ASC, id ASC LIMIT %d", $limit ), ARRAY_A );
 	}
 
 	/**
-	 * Count pending rows.
+	 * SQL condition for rows waiting for the queue.
 	 *
+	 * @param int[]         $statuses Statuses.
+	 * @param string[]|null $langs    Languages; null = active target languages.
+	 * @return string
+	 */
+	private static function pending_where( array $statuses, $langs ) {
+		global $wpdb;
+		if ( null === $langs ) {
+			$langs = array_keys( shdt()->languages()->targets() );
+			if ( ! $langs ) {
+				return '1 = 0';
+			}
+		}
+		$where = 'status IN (' . implode( ',', array_map( 'absint', $statuses ? $statuses : array( self::PENDING ) ) ) . ') AND attempts < 5';
+		if ( $langs ) {
+			$langs  = array_values( array_map( 'strval', $langs ) );
+			$where .= $wpdb->prepare( ' AND lang IN (' . implode( ',', array_fill( 0, count( $langs ), '%s' ) ) . ')', $langs ); // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQL.NotPrepared
+		}
+		return $where;
+	}
+
+	/**
+	 * Count rows waiting for the queue.
+	 *
+	 * @param int[]    $statuses PENDING and/or OUTDATED.
+	 * @param string[] $langs    Languages; null = the active target languages.
 	 * @return int
 	 */
-	public function count_pending() {
+	public function count_pending( array $statuses = array( self::PENDING, self::OUTDATED ), $langs = null ) {
 		global $wpdb;
 		$table = self::table();
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} WHERE status = 0 AND attempts < 5" );
+		$where = self::pending_where( $statuses, $langs );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $where is prepared in pending_where().
+		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} WHERE {$where}" );
+	}
+
+	/**
+	 * SQL condition: automatic translations not made by one of $engines.
+	 * Manual edits and imported translations never match.
+	 *
+	 * @param string[] $engines Engine ids that count as "current".
+	 * @return string Prepared SQL fragment.
+	 */
+	private static function other_engine_where( array $engines ) {
+		global $wpdb;
+		$engines = array_values( array_merge( array_map( 'strval', $engines ), array( 'manual', 'import' ) ) );
+		$in      = implode( ',', array_fill( 0, count( $engines ), '%s' ) );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
+		return $wpdb->prepare( "status = 1 AND engine NOT IN ({$in})", $engines );
+	}
+
+	/**
+	 * Automatic translations produced by another engine.
+	 *
+	 * @param string[] $engines Engine ids that count as "current".
+	 * @return int
+	 */
+	public function count_other_engine( array $engines ) {
+		global $wpdb;
+		$table = self::table();
+		$where = self::other_engine_where( $engines );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $where is prepared.
+		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} WHERE {$where}" );
+	}
+
+	/**
+	 * Queue automatic translations of other engines for re-translation.
+	 * They stay visible until the new translation replaces them.
+	 *
+	 * @param string[] $engines Engine ids that count as "current".
+	 * @return int Rows marked.
+	 */
+	public function mark_outdated( array $engines ) {
+		global $wpdb;
+		$table = self::table();
+		$where = self::other_engine_where( $engines );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $where is prepared.
+		return (int) $wpdb->query( "UPDATE {$table} SET status = 3, attempts = 0 WHERE {$where}" );
 	}
 
 	/**
@@ -375,7 +455,7 @@ class Store {
 	/**
 	 * Per-language statistics.
 	 *
-	 * @return array lang => [ total, pending, auto, manual, chars ]
+	 * @return array lang => [ total, pending, auto, manual, outdated, chars ]
 	 */
 	public function stats() {
 		global $wpdb;
@@ -387,17 +467,24 @@ class Store {
 			$lang = $row['lang'];
 			if ( ! isset( $out[ $lang ] ) ) {
 				$out[ $lang ] = array(
-					'total'   => 0,
-					'pending' => 0,
-					'auto'    => 0,
-					'manual'  => 0,
-					'chars'   => 0,
+					'total'    => 0,
+					'pending'  => 0,
+					'auto'     => 0,
+					'manual'   => 0,
+					'outdated' => 0,
+					'chars'    => 0,
 				);
 			}
 			$n                     = (int) $row['n'];
 			$out[ $lang ]['total'] += $n;
 			$out[ $lang ]['chars'] += (int) $row['chars'];
-			$key                   = self::PENDING === (int) $row['status'] ? 'pending' : ( self::MANUAL === (int) $row['status'] ? 'manual' : 'auto' );
+			$names                 = array(
+				self::PENDING  => 'pending',
+				self::AUTO     => 'auto',
+				self::MANUAL   => 'manual',
+				self::OUTDATED => 'outdated',
+			);
+			$key                   = isset( $names[ (int) $row['status'] ] ) ? $names[ (int) $row['status'] ] : 'auto';
 			$out[ $lang ][ $key ]  += $n;
 		}
 		return $out;
@@ -420,7 +507,7 @@ class Store {
 			$params[] = $lang;
 		}
 		if ( 'auto' === $scope ) {
-			$where[] = 'status IN (0,1)';
+			$where[] = 'status IN (0,1,3)';
 		} elseif ( 'pending' === $scope ) {
 			$where[] = 'status = 0';
 		}
@@ -461,9 +548,17 @@ class Store {
 			}
 			$lang       = sanitize_text_field( $row['lang'] );
 			$original   = Text::normalize( (string) $row['original'] );
-			$translated = (string) $row['translated'];
+			$translated = Text::normalize( Text::canonical_placeholders( (string) $row['translated'] ) );
 			if ( '' === $original || '' === $translated ) {
 				continue;
+			}
+			// Tags edited by hand must still match the original, or the page markup breaks.
+			if ( Text::has_placeholders( $original ) ) {
+				if ( ! Text::placeholders_match( $original, $translated ) ) {
+					continue;
+				}
+			} elseif ( Text::has_placeholders( $translated ) ) {
+				$translated = Text::normalize( preg_replace( Text::PLACEHOLDER, '', $translated ) );
 			}
 			if ( isset( $row['status'] ) && self::MANUAL === (int) $row['status'] ) {
 				$this->save_manual( $lang, $original, $translated );

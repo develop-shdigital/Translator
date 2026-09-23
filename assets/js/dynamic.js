@@ -27,9 +27,25 @@
 		return String(text).replace(/[\t\n\f\r ]+/g, ' ').trim();
 	}
 
-	function skipped(el) {
+	// One selector the browser cannot parse must not disable all the others.
+	var skip = (Array.isArray(cfg.skip) ? cfg.skip : String(cfg.skip || '').split(',')).filter(function (selector) {
 		try {
-			return !el || (el.closest && el.closest(cfg.skip));
+			document.createDocumentFragment().querySelector(selector);
+			return String(selector).trim() !== '';
+		} catch (e) {
+			return false;
+		}
+	}).join(',');
+
+	function skipped(el) {
+		if (!el) {
+			return true;
+		}
+		if (el.isContentEditable) {
+			return true; // Never touch what the visitor is typing.
+		}
+		try {
+			return skip !== '' && el.closest && el.closest(skip);
 		} catch (e) {
 			return false;
 		}
@@ -40,9 +56,10 @@
 	}
 
 	function apply(target, translation) {
+		// Writing an unchanged value still triggers the observer, so skip it.
 		if (target.attr) {
 			var current = target.el.getAttribute(target.attr);
-			if (current !== null && normalize(current) === target.key) {
+			if (current !== null && current !== translation && normalize(current) === target.key) {
 				target.el.setAttribute(target.attr, translation);
 			}
 			return;
@@ -54,10 +71,15 @@
 		}
 		var lead = value.match(/^\s*/)[0];
 		var trail = value.match(/\s*$/)[0];
-		node.nodeValue = lead + translation + trail;
+		if (lead + translation + trail !== value) {
+			node.nodeValue = lead + translation + trail;
+		}
 	}
 
 	function enqueue(key, target) {
+		if (failures > 3) {
+			return; // The endpoint keeps failing: stop collecting.
+		}
 		if (key in cache) {
 			apply(target, cache[key]);
 			return;
@@ -172,7 +194,12 @@
 			failures++;
 			keys.forEach(function (k) {
 				cache[k] = k;
+				outputs[k] = true;
 			});
+			if (failures > 3) {
+				queue = Object.create(null);
+				pending = 0;
+			}
 		}).then(function () {
 			inflight--;
 			if (pending) {

@@ -176,7 +176,19 @@ class Languages {
 		if ( isset( $catalog[ $dash ] ) ) {
 			return $dash;
 		}
-		$base = strtolower( substr( $locale, 0, 2 ) );
+		$aliases = array(
+			'zh_HK' => 'zh-TW',
+			'zh_MO' => 'zh-TW',
+			'zh_SG' => 'zh-CN',
+		);
+		if ( isset( $aliases[ $locale ] ) ) {
+			return $aliases[ $locale ];
+		}
+		// Only a two-letter language subtag says which language it is ("kab" is not "ka").
+		if ( ! preg_match( '/^([a-z]{2})(?:[_\-]|$)/i', (string) $locale, $m ) ) {
+			return 'en';
+		}
+		$base = strtolower( $m[1] );
 		if ( 'nb' === $base || 'nn' === $base ) {
 			$base = 'no';
 		}
@@ -378,7 +390,27 @@ class Languages {
 		if ( ! $lang ) {
 			return $code;
 		}
-		return str_replace( '_', '-', $lang['locale'] );
+		return self::locale_tag( $lang['locale'] );
+	}
+
+	/**
+	 * Language tag for a WordPress locale: language plus region only.
+	 * "de_CH_informal" → "de-CH", "pt_PT_ao90" → "pt-PT", "bel" → "be".
+	 *
+	 * @param string $locale    WordPress locale.
+	 * @param string $separator "-" for hreflang / lang, "_" for og:locale.
+	 * @return string
+	 */
+	public static function locale_tag( $locale, $separator = '-' ) {
+		$parts = preg_split( '/[_\-]/', (string) $locale );
+		$tag   = strtolower( (string) array_shift( $parts ) );
+		if ( 'bel' === $tag ) {
+			$tag = 'be';
+		}
+		if ( $parts && preg_match( '/^(?:[a-z]{2}|[0-9]{3})$/i', $parts[0] ) ) {
+			$tag .= $separator . strtoupper( $parts[0] );
+		}
+		return $tag;
 	}
 
 	/**

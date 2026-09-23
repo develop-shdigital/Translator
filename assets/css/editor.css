@@ -42,5 +42,7 @@ html.shdt-picking .shdt-editor *:hover { outline: none !important; }
 .shdt-editor__save { background: #4b5e3c !important; color: #fff !important; border-color: #4b5e3c !important; }
 @media (max-width: 900px) {
 	html.shdt-editing { margin-right: 0 !important; }
-	.shdt-editor { width: 100%; top: auto; height: 55vh; border-left: 0; border-top: 1px solid #e3e4de; }
+	.shdt-editor { width: 100%; height: 55vh; border-left: 0; border-top: 1px solid #e3e4de; }
+	.shdt-editor,
+	.admin-bar .shdt-editor { top: auto; bottom: 0; }
 }

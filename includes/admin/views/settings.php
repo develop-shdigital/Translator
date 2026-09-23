@@ -22,11 +22,17 @@ $shdt_stats     = $plugin->store()->stats();
 $shdt_pending   = $plugin->store()->count_pending();
 $shdt_done      = 0;
 foreach ( $shdt_stats as $shdt_row ) {
-	$shdt_done += $shdt_row['auto'] + $shdt_row['manual'];
+	$shdt_done += $shdt_row['auto'] + $shdt_row['manual'] + $shdt_row['outdated'];
 }
 $shdt_engine_id = $settings['engine'];
 $shdt_engine    = isset( $engines[ $shdt_engine_id ] ) ? $engines[ $shdt_engine_id ] : null;
-$shdt_paused    = $shdt_engine ? $plugin->translator()->paused( $shdt_engine_id ) : false;
+$shdt_paused    = false;
+foreach ( $plugin->translator()->pauses() as $shdt_pause ) {
+	if ( $shdt_pause['engine'] === $shdt_engine_id ) {
+		$shdt_paused = $shdt_pause;
+		break;
+	}
+}
 $shdt_menus     = get_registered_nav_menus();
 
 /**
@@ -118,7 +124,7 @@ $shdt_row = function ( $key, $lang, $catalog, $is_source ) {
 			<span class="shdt-stat__label">
 				<?php
 				if ( $shdt_paused ) {
-					esc_html_e( 'Paused for a few minutes (rate limit)', 'shd-translator' );
+					esc_html_e( 'Paused – see the message above', 'shd-translator' );
 				} elseif ( $shdt_engine && ! $shdt_engine->is_available() ) {
 					esc_html_e( 'Not configured – using the free fallback', 'shd-translator' );
 				} else {

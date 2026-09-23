@@ -31,6 +31,13 @@ abstract class Base_Engine implements Engine {
 	protected $error = null;
 
 	/**
+	 * Keys of the batches actually sent during the last run.
+	 *
+	 * @var array
+	 */
+	protected $sent = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Settings $settings Settings.
@@ -119,10 +126,21 @@ abstract class Base_Engine implements Engine {
 	}
 
 	/**
+	 * Keys of the batches that were sent during the last translate_batches() call
+	 * (batches skipped because of the deadline or an earlier pause are not included).
+	 *
+	 * @return array
+	 */
+	public function sent() {
+		return $this->sent;
+	}
+
+	/**
 	 * {@inheritDoc}
 	 */
 	public function translate_batches( array $batches, array $source, array $target, array $context, $deadline ) {
 		$this->error = null;
+		$this->sent  = array();
 		$results     = array();
 		$concurrency = max( 1, (int) apply_filters( 'shdt_engine_concurrency', $this->concurrency(), $this->id() ) );
 
@@ -139,6 +157,7 @@ abstract class Base_Engine implements Engine {
 				$requests[ $key ]   = $request;
 			}
 
+			$this->sent = array_merge( $this->sent, array_keys( $requests ) );
 			foreach ( $this->send( $requests ) as $key => $response ) {
 				try {
 					if ( $response instanceof Engine_Exception ) {
@@ -168,7 +187,7 @@ abstract class Base_Engine implements Engine {
 	 */
 	protected function send( array $requests ) {
 		$class = self::requests_class();
-		if ( count( $requests ) > 1 && $class && ! self::proxy_enabled() && apply_filters( 'shdt_parallel_requests', true ) ) {
+		if ( count( $requests ) > 1 && $class && ! self::proxy_enabled() && ! self::http_api_customised( $requests ) && apply_filters( 'shdt_parallel_requests', true ) ) {
 			return $this->send_parallel( $class, $requests );
 		}
 
@@ -207,6 +226,30 @@ abstract class Base_Engine implements Engine {
 			);
 		}
 		return $out;
+	}
+
+	/**
+	 * Whether the site changes how the WordPress HTTP API sends these requests
+	 * (blocked external hosts, pre_http_request, shdt_http_args). The parallel
+	 * transport would bypass that, so such sites get wp_remote_request() calls
+	 * one after the other instead.
+	 *
+	 * @param array $requests key => request.
+	 * @return bool
+	 */
+	private static function http_api_customised( array $requests ) {
+		if ( has_filter( 'pre_http_request' ) || has_filter( 'shdt_http_args' ) ) {
+			return true;
+		}
+		if ( defined( 'WP_HTTP_BLOCK_EXTERNAL' ) && WP_HTTP_BLOCK_EXTERNAL && class_exists( 'WP_Http' ) ) {
+			$http = new \WP_Http();
+			foreach ( $requests as $request ) {
+				if ( $http->block_request( $request['url'] ) ) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -331,6 +374,10 @@ abstract class Base_Engine implements Engine {
 	/**
 	 * Build an exception from an HTTP status.
 	 *
+	 * Account problems (key, credit, rate limit, outage) pause the whole engine.
+	 * A rejected request (400/404/422) usually means this language pair is not
+	 * supported, so only the current target language is paused.
+	 *
 	 * @param int    $status  HTTP status.
 	 * @param string $message Message.
 	 * @param array  $headers Headers.
@@ -338,17 +385,30 @@ abstract class Base_Engine implements Engine {
 	 */
 	protected function http_error( $status, $message, array $headers = array() ) {
 		$pause = 0;
+		$scope = Engine_Exception::SCOPE_ENGINE;
 		if ( 429 === $status ) {
 			$pause = isset( $headers['retry-after'] ) && is_numeric( $headers['retry-after'] ) ? max( 30, (int) $headers['retry-after'] ) : 120;
 		} elseif ( in_array( $status, array( 401, 402, 403, 456 ), true ) ) {
 			$pause = 1800;
 		} elseif ( $status >= 500 ) {
 			$pause = 120;
-		} elseif ( 400 === $status || 404 === $status ) {
+		} elseif ( in_array( $status, array( 400, 404, 422 ), true ) ) {
 			$pause = 600;
+			$scope = Engine_Exception::SCOPE_LANGUAGE;
 		}
+		return new Engine_Exception( $this->error_message( $status, $message ), $pause, $status, $scope );
+	}
+
+	/**
+	 * Human readable error text.
+	 *
+	 * @param int    $status  HTTP status.
+	 * @param string $message Service message.
+	 * @return string
+	 */
+	protected function error_message( $status, $message ) {
 		/* translators: 1: engine name, 2: HTTP status, 3: error message */
-		return new Engine_Exception( sprintf( __( '%1$s returned HTTP %2$d: %3$s', 'shd-translator' ), $this->label(), $status, $message ), $pause, $status );
+		return sprintf( __( '%1$s returned HTTP %2$d: %3$s', 'shd-translator' ), $this->label(), $status, $message );
 	}
 
 	/**

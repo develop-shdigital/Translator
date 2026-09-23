@@ -41,7 +41,11 @@ class Queue {
 		if ( get_transient( 'shdt_queue_lock' ) ) {
 			return array( 0, 0, shdt()->store()->count_pending() );
 		}
-		set_transient( 'shdt_queue_lock', 1, $seconds + 15 );
+		set_transient( 'shdt_queue_lock', 1, $seconds + 60 );
+		// AI requests can take a while; give background runs room where the host allows it.
+		if ( function_exists( 'set_time_limit' ) ) {
+			@set_time_limit( $seconds + 60 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		}
 
 		$store    = shdt()->store();
 		$deadline = microtime( true ) + $seconds;

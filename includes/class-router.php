@@ -58,6 +58,27 @@ class Router {
 	private $home = null;
 
 	/**
+	 * Request to a form handler (comments, login, admin-post) whose language comes from the referring page.
+	 *
+	 * @var bool
+	 */
+	private $form_request = false;
+
+	/**
+	 * Path of the WordPress core directory (site URL), e.g. "/" or "/wp/".
+	 *
+	 * @var string|null
+	 */
+	private $core_path = null;
+
+	/**
+	 * Paths of other sites in a subdirectory multisite network (main site only).
+	 *
+	 * @var string[]|null
+	 */
+	private $network_paths = null;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Languages $languages Languages.
@@ -75,15 +96,48 @@ class Router {
 		add_filter( 'redirect_canonical', array( $this, 'redirect_canonical' ), 20, 2 );
 		add_filter( 'wp_redirect', array( $this, 'wp_redirect' ), 20 );
 		add_action( 'template_redirect', array( $this, 'redirect_default_prefix' ), 0 );
+
+		// WooCommerce builds these URLs on the server (checkout AJAX, Store API): keep them in the language.
+		foreach ( array( 'woocommerce_get_checkout_order_received_url', 'woocommerce_get_return_url', 'woocommerce_get_checkout_url', 'woocommerce_get_cart_url', 'woocommerce_get_myaccount_page_permalink' ) as $filter ) {
+			add_filter( $filter, array( $this, 'filter_url' ), 20 );
+		}
 	}
 
 	/**
-	 * URL mode.
+	 * URL mode. Language folders need rewrite rules; with plain or "/index.php/…"
+	 * permalinks the "?lang=" format is used automatically.
 	 *
 	 * @return string directory|query
 	 */
 	public function mode() {
-		return 'query' === $this->settings->get( 'url_mode' ) ? 'query' : 'directory';
+		if ( 'query' === $this->settings->get( 'url_mode' ) || ! self::pretty_permalinks() ) {
+			return 'query';
+		}
+		return 'directory';
+	}
+
+	/**
+	 * Whether the permalink structure supports language folders.
+	 *
+	 * @return bool
+	 */
+	public static function pretty_permalinks() {
+		$structure = (string) get_option( 'permalink_structure', '' );
+		return '' !== $structure && 0 !== strpos( $structure, '/index.php' );
+	}
+
+	/**
+	 * Localise a URL generated on the server, on translated requests only.
+	 *
+	 * @param string $url URL.
+	 * @return string
+	 */
+	public function filter_url( $url ) {
+		if ( ! is_string( $url ) || ! $this->languages->is_translated_request() ) {
+			return $url;
+		}
+		$local = $this->localize_url( $url );
+		return is_string( $local ) ? $local : $url;
 	}
 
 	/**
@@ -98,20 +152,22 @@ class Router {
 			return;
 		}
 
+		// Form handlers (comments, login, admin-post) answer in the language of the page that sent the form.
+		$script = isset( $_SERVER['SCRIPT_NAME'] ) ? basename( (string) wp_unslash( $_SERVER['SCRIPT_NAME'] ) ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		if ( in_array( $script, array( 'wp-comments-post.php', 'wp-login.php', 'admin-post.php' ), true ) ) {
+			$this->form_request = true;
+			$this->language_from_referer();
+			return;
+		}
+
 		// Admin screens always stay in the admin's language.
 		if ( is_admin() && ! wp_doing_ajax() ) {
 			return;
 		}
 
-		// AJAX / REST calls made by a translated page: use the language of that page.
-		if ( wp_doing_ajax() || $this->is_rest_uri( $uri ) ) {
-			$lang = isset( $_REQUEST['shdt_lang'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['shdt_lang'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			if ( '' === $lang && ! empty( $_SERVER['HTTP_REFERER'] ) ) {
-				$lang = $this->language_of_url( esc_url_raw( wp_unslash( $_SERVER['HTTP_REFERER'] ) ) );
-			}
-			if ( '' !== $lang && $this->languages->is_active( $lang ) ) {
-				$this->languages->set_current( $lang );
-			}
+		// AJAX / REST calls made by a translated page (incl. WooCommerce wc-ajax): use the language of that page.
+		if ( wp_doing_ajax() || $this->is_rest_uri( $uri ) || isset( $_GET['wc-ajax'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			$this->language_from_referer();
 			// A REST call may still carry a prefix (/de/wp-json/...): strip it.
 			if ( 'directory' === $this->mode() ) {
 				$this->strip_prefix_from_request( $uri );
@@ -134,6 +190,19 @@ class Router {
 				$this->default_prefixed = true;
 			}
 			$this->languages->set_current( $code );
+		}
+	}
+
+	/**
+	 * Take the language from ?shdt_lang= or from the page that made the request.
+	 */
+	private function language_from_referer() {
+		$lang = isset( $_REQUEST['shdt_lang'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['shdt_lang'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( '' === $lang && ! empty( $_SERVER['HTTP_REFERER'] ) ) {
+			$lang = $this->language_of_url( esc_url_raw( wp_unslash( $_SERVER['HTTP_REFERER'] ) ) );
+		}
+		if ( '' !== $lang && $this->languages->is_active( $lang ) ) {
+			$this->languages->set_current( $lang );
 		}
 	}
 
@@ -255,13 +324,21 @@ class Router {
 	/**
 	 * Absolute URL of the current request in the given language.
 	 *
-	 * @param string $lang Language code.
+	 * @param string $lang      Language code.
+	 * @param bool   $canonical Keep only WordPress query vars (for hreflang), dropping utm_*, fbclid….
 	 * @return string
 	 */
-	public function current_url( $lang ) {
+	public function current_url( $lang, $canonical = false ) {
 		// Built from the configured home URL, never from the Host header (cache poisoning).
-		$home  = $this->home();
-		$uri   = remove_query_arg( array( 'shdt_editor', 'lang' ), $this->clean_uri );
+		$home = $this->home();
+		$uri  = remove_query_arg( array( 'shdt_editor', 'shdt_warm', 'lang' ), $this->clean_uri );
+		if ( $canonical && false !== strpos( $uri, '?' ) ) {
+			global $wp;
+			$public = isset( $wp->public_query_vars ) ? (array) $wp->public_query_vars : array( 's', 'p', 'page_id', 'paged' );
+			parse_str( (string) wp_parse_url( $uri, PHP_URL_QUERY ), $args );
+			$drop = array_diff( array_keys( $args ), $public );
+			$uri  = $drop ? remove_query_arg( $drop, $uri ) : $uri;
+		}
 		$url   = $home['scheme'] . '://' . $home['host'] . ( $home['port'] ? ':' . $home['port'] : '' ) . $uri;
 		$local = $this->localize_url( $url, $lang );
 		return is_string( $local ) ? $local : $url;
@@ -283,7 +360,20 @@ class Router {
 		if ( preg_match( '~^(?:wp-admin|wp-content|wp-includes|wp-json|xmlrpc\.php|wp-login\.php|wp-cron\.php|wp-signup\.php|wp-activate\.php|wp-comments-post\.php|wp-trackback\.php)(?:/|$)~i', $relative ) ) {
 			return false;
 		}
-		if ( preg_match( '~(?:^|/)(?:feed|comments/feed)/?$~i', $relative ) ) {
+		// WordPress core in its own directory (siteurl /wp/, home /): login, admin, comments live there.
+		if ( null === $this->core_path ) {
+			$this->core_path = trailingslashit( (string) wp_parse_url( site_url(), PHP_URL_PATH ) );
+		}
+		$core = $this->core_path;
+		if ( $core !== $base && 0 === strpos( trailingslashit( $path ), $core ) ) {
+			return false;
+		}
+		if ( preg_match( '~(?:^|/)(?:comments/)?feed(?:/(?:feed|rdf|rss|rss2|atom))?/?$~i', $relative ) ) {
+			return false;
+		}
+		// Main site of a subdirectory network: /shop/ may be another site of the network.
+		$segment = strtok( $relative, '/' );
+		if ( false !== $segment && '' !== $segment && in_array( strtolower( $segment ), $this->network_paths(), true ) ) {
 			return false;
 		}
 		// Files (images, PDFs, sitemaps …) keep their URL.
@@ -294,6 +384,32 @@ class Router {
 			return false;
 		}
 		return (bool) apply_filters( 'shdt_is_localizable_path', true, $path );
+	}
+
+	/**
+	 * First path segments of the other sites in a subdirectory network (only on the main site).
+	 *
+	 * @return string[]
+	 */
+	private function network_paths() {
+		if ( null !== $this->network_paths ) {
+			return $this->network_paths;
+		}
+		$this->network_paths = array();
+		if ( ! is_multisite() || ! function_exists( 'is_subdomain_install' ) || is_subdomain_install() || ! is_main_site() ) {
+			return $this->network_paths;
+		}
+		$base = $this->home_path();
+		foreach ( get_sites( array( 'number' => 1000, 'network_id' => get_current_network_id(), 'fields' => '' ) ) as $site ) {
+			$path = trailingslashit( (string) $site->path );
+			if ( $path !== $base && 0 === strpos( $path, $base ) ) {
+				$first = strtok( substr( $path, strlen( $base ) ), '/' );
+				if ( false !== $first && '' !== $first ) {
+					$this->network_paths[] = strtolower( $first );
+				}
+			}
+		}
+		return $this->network_paths;
 	}
 
 	/**
@@ -342,11 +458,16 @@ class Router {
 		}
 		$lang = null === $lang ? $this->languages->current() : $lang;
 		$trim = trim( $url );
-		if ( '' === $trim || '#' === $trim[0] || '?' === $trim[0] ) {
+		if ( '' === $trim || '#' === $trim[0] ) {
 			return null;
 		}
 		if ( preg_match( '~^(?:mailto|tel|sms|javascript|data|blob|ftp|file|whatsapp|skype|callto|viber|geo|maps):~i', $trim ) ) {
 			return null;
+		}
+		if ( '?' === $trim[0] || ( ! preg_match( '~^(?:[a-z][a-z0-9+.\-]*:|//|/)~i', $trim ) ) ) {
+			// Relative URLs resolve against the current, already localised page; in
+			// "?lang=" mode they would lose the query parameter, so it is added.
+			return 'query' === $this->mode() ? $this->localize_relative( $trim, $lang ) : null;
 		}
 
 		$parts = wp_parse_url( $trim );
@@ -374,6 +495,9 @@ class Router {
 
 		$query = isset( $parts['query'] ) ? $parts['query'] : '';
 		$base  = $this->home_path();
+		if ( '' !== $query && preg_match( '/(?:^|&)feed=/', $query ) ) {
+			return null; // ?feed=rss2
+		}
 
 		if ( 'query' === $this->mode() ) {
 			parse_str( $query, $args );
@@ -384,6 +508,11 @@ class Router {
 			}
 			$query = http_build_query( $args, '', '&', PHP_QUERY_RFC3986 );
 		} else {
+			// A link that explicitly points to another language (/fr/…) keeps pointing there.
+			$linked = $this->prefix_language( $path );
+			if ( $linked && ! $this->languages->is_default( $linked ) ) {
+				return null;
+			}
 			$path = $this->strip_prefix( $path );
 			if ( ! $this->languages->is_default( $lang ) ) {
 				$entry = $this->languages->get( $lang );
@@ -410,6 +539,53 @@ class Router {
 			$out .= '#' . $parts['fragment'];
 		}
 		return $out;
+	}
+
+	/**
+	 * "page/2/?x=1" or "?page=2" with the language parameter ("?lang=" mode).
+	 *
+	 * @param string $url  Relative URL.
+	 * @param string $lang Language.
+	 * @return string|null
+	 */
+	private function localize_relative( $url, $lang ) {
+		$fragment = '';
+		$hash     = strpos( $url, '#' );
+		if ( false !== $hash ) {
+			$fragment = substr( $url, $hash );
+			$url      = substr( $url, 0, $hash );
+		}
+		$path  = (string) strtok( $url, '?' );
+		$query = (string) wp_parse_url( 'http://x/' . ltrim( $url, '/' ), PHP_URL_QUERY );
+		if ( preg_match( '~\.([a-z0-9]{2,5})$~i', $path, $m ) && ! in_array( strtolower( $m[1] ), array( 'html', 'htm', 'php' ), true ) ) {
+			return null; // Files.
+		}
+		parse_str( $query, $args );
+		if ( isset( $args['feed'] ) ) {
+			return null;
+		}
+		unset( $args['lang'] );
+		if ( ! $this->languages->is_default( $lang ) ) {
+			$entry        = $this->languages->get( $lang );
+			$args['lang'] = $entry ? $entry['slug'] : $lang;
+		}
+		$query = http_build_query( $args, '', '&', PHP_QUERY_RFC3986 );
+		return $path . ( '' !== $query ? '?' . $query : '' ) . $fragment;
+	}
+
+	/**
+	 * Language whose prefix starts a path, if any.
+	 *
+	 * @param string $path Path.
+	 * @return string|null
+	 */
+	private function prefix_language( $path ) {
+		$base = $this->home_path();
+		if ( 0 !== strpos( $path, $base ) ) {
+			return null;
+		}
+		$segment = strtok( substr( $path, strlen( $base ) ), '/' );
+		return false !== $segment && '' !== $segment ? $this->languages->code_by_slug( rawurldecode( $segment ) ) : null;
 	}
 
 	/**
@@ -446,8 +622,10 @@ class Router {
 		if ( ! is_string( $local ) ) {
 			return $redirect_url;
 		}
-		$current = $this->current_url( $this->languages->current() );
-		return $local === $current ? false : $local;
+		// $requested_url is built from the real Host header and the stripped URI, so host,
+		// port and scheme corrections by WordPress survive; only an identical target is a loop.
+		$requested = $this->localize_url( $requested_url );
+		return ( is_string( $requested ) ? $requested : $requested_url ) === $local ? false : $local;
 	}
 
 	/**
@@ -457,7 +635,7 @@ class Router {
 	 * @return string
 	 */
 	public function wp_redirect( $location ) {
-		if ( is_admin() || ! $this->languages->is_translated_request() ) {
+		if ( ( is_admin() && ! $this->form_request ) || ! $this->languages->is_translated_request() ) {
 			return $location;
 		}
 		$local = $this->localize_url( $location );

@@ -30,7 +30,8 @@ class Html_Processor {
 	const T_RAW   = 4;
 	const T_OTHER = 5;
 
-	const TAG_RE = '~<([a-zA-Z][a-zA-Z0-9:\-]*)((?:[^>"\']++|"[^"]*+"|\'[^\']*+\')*+)>~A';
+	// A quote only opens a value right after "=" (as in browsers), so stray quotes do not break the tag.
+	const TAG_RE = '~<([a-zA-Z][a-zA-Z0-9:\-]*)((?:[^>=]++|=\s*+(?:"[^"]*+"|\'[^\']*+\'|[^\s>]*+))*+)>~A';
 
 	/**
 	 * Elements whose content is not HTML.
@@ -128,6 +129,16 @@ class Html_Processor {
 	);
 
 	/**
+	 * Foreign (XML-like) content where self-closing tags are honoured.
+	 *
+	 * @var array
+	 */
+	private static $foreign = array(
+		'svg'  => 1,
+		'math' => 1,
+	);
+
+	/**
 	 * Attributes translated on any element.
 	 *
 	 * @var string[]
@@ -197,6 +208,7 @@ class Html_Processor {
 	 *     @type bool          $translate_meta Translate <title> and SEO meta tags.
 	 *     @type bool          $translate_attributes Translate alt/title/placeholder….
 	 *     @type string[]      $json_keys      Keys translated inside Elementor data-settings JSON.
+	 *     @type array         $form_fields    Hidden inputs added to internal GET forms (name => value).
 	 * }
 	 */
 	public function __construct( array $options ) {
@@ -211,6 +223,7 @@ class Html_Processor {
 				'translate_meta'       => true,
 				'translate_attributes' => true,
 				'json_keys'            => array( 'rotating_text' ),
+				'form_fields'          => array(),
 			),
 			$options
 		);
@@ -234,9 +247,21 @@ class Html_Processor {
 		$translations = $keys ? $this->translate( $keys ) : array();
 
 		// Sentences whose markup could not be preserved are translated piece by piece.
+		// A stored translation with wrong tags (e.g. from an import) counts as "could not be preserved".
 		$fallback = array();
 		foreach ( $this->segments as $index => $segment ) {
-			if ( 'run' !== $segment['kind'] || false !== $this->lookup( $translations, $segment['key'] ) ) {
+			if ( 'run' !== $segment['kind'] ) {
+				continue;
+			}
+			$t = $this->lookup( $translations, $segment['key'] );
+			if ( is_string( $t ) && '' !== $t ) {
+				$t = Text::canonical_placeholders( $t );
+				if ( Text::placeholders_match( $segment['key'], $t ) ) {
+					$translations[ $segment['key'] ] = $t;
+					continue;
+				}
+				$translations[ $segment['key'] ] = false;
+			} elseif ( false !== $t ) {
 				continue;
 			}
 			$this->segments[ $index ]['skip'] = true;
@@ -329,7 +354,11 @@ class Html_Processor {
 			$next = $lt + 1 < $len ? $html[ $lt + 1 ] : '';
 
 			if ( '!' === $next || '?' === $next ) {
-				if ( 0 === substr_compare( $html, '<!--', $lt, 4 ) ) {
+				if ( 0 === substr_compare( $html, '<!-->', $lt, 5 ) ) {
+					$end = $lt + 5; // Empty comment, closed at once (HTML spec).
+				} elseif ( 0 === substr_compare( $html, '<!--->', $lt, 6 ) ) {
+					$end = $lt + 6;
+				} elseif ( 0 === substr_compare( $html, '<!--', $lt, 4 ) ) {
 					$end = strpos( $html, '-->', $lt + 4 );
 					$end = false === $end ? $len : $end + 3;
 				} else {
@@ -368,7 +397,9 @@ class Html_Processor {
 
 				if ( isset( self::$raw[ $name ] ) ) {
 					$end = $len;
-					if ( preg_match( '~</' . preg_quote( $name, '~' ) . '[\s/>]~i', $html, $mm, PREG_OFFSET_CAPTURE, $pos ) ) {
+					if ( 'script' === $name ) {
+						$end = $this->script_end( $html, $pos );
+					} elseif ( preg_match( '~</' . preg_quote( $name, '~' ) . '[\s/>]~i', $html, $mm, PREG_OFFSET_CAPTURE, $pos ) ) {
 						$end = $mm[0][1];
 					}
 					if ( $end > $pos ) {
@@ -389,6 +420,41 @@ class Html_Processor {
 		}
 
 		return $tokens;
+	}
+
+	/**
+	 * Where a <script> element's content ends. Follows the HTML "script data
+	 * escaped" rules: inside "<!--", a nested "<script" hides the next "</script".
+	 *
+	 * @param string $html HTML.
+	 * @param int    $pos  Offset right after the <script> start tag.
+	 * @return int Offset of the closing "</script".
+	 */
+	private function script_end( $html, $pos ) {
+		if ( ! preg_match_all( '~<!--|-->|<(/?)script(?=[\s/>])~i', $html, $marks, PREG_SET_ORDER | PREG_OFFSET_CAPTURE, $pos ) ) {
+			return strlen( $html );
+		}
+		$state = 0; // 0 = script data, 1 = escaped, 2 = double escaped.
+		foreach ( $marks as $mark ) {
+			$token  = strtolower( $mark[0][0] );
+			$offset = $mark[0][1];
+			if ( '<!--' === $token ) {
+				if ( 0 === $state ) {
+					$state = 1;
+				}
+			} elseif ( '-->' === $token ) {
+				$state = 0;
+			} elseif ( '/' === $mark[1][0] ) {
+				if ( 2 === $state ) {
+					$state = 1;
+				} else {
+					return $offset;
+				}
+			} elseif ( 1 === $state ) {
+				$state = 2;
+			}
+		}
+		return strlen( $html );
 	}
 
 	/**
@@ -421,7 +487,7 @@ class Html_Processor {
 		if ( '' === trim( $str ) ) {
 			return $attrs;
 		}
-		preg_match_all( '~([^\s"\'>/=]+)(?:\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>"\']+)))?~', $str, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE );
+		preg_match_all( '~([^\s>/=]+)(?:\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+)))?~', $str, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE );
 		foreach ( $matches as $m ) {
 			$name = strtolower( $m[1][0] );
 			if ( isset( $attrs[ $name ] ) ) {
@@ -436,7 +502,7 @@ class Html_Processor {
 			foreach ( array( 2 => '"', 3 => "'", 4 => '' ) as $group => $quote ) {
 				if ( isset( $m[ $group ] ) && $m[ $group ][1] >= 0 ) {
 					$attr = array(
-						'v' => Text::decode( $m[ $group ][0] ),
+						'v' => Text::decode( $m[ $group ][0], true ),
 						'o' => $base + $m[ $group ][1],
 						'l' => strlen( $m[ $group ][0] ),
 						'q' => $quote,
@@ -473,19 +539,24 @@ class Html_Processor {
 
 				case self::T_OPEN:
 					$name = $token['name'];
+					// In SVG/MathML a self-closing tag really is closed.
+					$closed = isset( self::$void[ $name ] ) || ( ! empty( $token['self'] ) && ( 'svg' === $name || 'math' === $name || ( $skip && isset( self::$foreign[ $skip[0] ] ) ) ) );
 					if ( $skip ) {
-						if ( $name === $skip[0] && ! isset( self::$void[ $name ] ) ) {
+						if ( $name === $skip[0] && ! $closed ) {
 							$skip[1]++;
 						}
 						$this->handle_tag( $i, false, $skip[2] );
 						break;
 					}
-					if ( $this->is_excluded( $token ) ) {
+					$excluded     = $this->is_excluded( $token );
+					$content_only = ! $excluded && isset( self::$skip_tags[ $name ] );
+					if ( $excluded || $content_only ) {
 						$this->flush( $run );
 						// Links inside the admin bar and the language switcher keep their URLs.
 						$rewrite = ! isset( $token['attrs']['data-shdt-switcher'] ) && ! ( isset( $token['attrs']['id']['v'] ) && 'wpadminbar' === $token['attrs']['id']['v'] );
-						$this->handle_tag( $i, false, $rewrite );
-						if ( ! isset( self::$void[ $name ] ) && ! isset( self::$raw[ $name ] ) ) {
+						// Code, SVG, textarea…: the content stays, but placeholder/title/aria-label are translated.
+						$this->handle_tag( $i, $content_only, $rewrite );
+						if ( ! $closed && ! isset( self::$raw[ $name ] ) ) {
 							$skip = array( $name, 1, $rewrite );
 						}
 						break;
@@ -530,30 +601,27 @@ class Html_Processor {
 	}
 
 	/**
-	 * Whether an element (and its content) is excluded from translation.
+	 * Whether an element (and its content) is excluded from translation by the
+	 * page author (translate="no", notranslate) or the exclusion selectors.
 	 *
 	 * @param array $token Open tag token.
 	 * @return bool
 	 */
 	private function is_excluded( array $token ) {
-		if ( isset( self::$skip_tags[ $token['name'] ] ) ) {
-			return true;
-		}
 		$attrs = $token['attrs'];
-		if ( ! $attrs ) {
-			return false;
-		}
-		if ( isset( $attrs['translate'] ) && 'no' === strtolower( (string) $attrs['translate']['v'] ) ) {
-			return true;
-		}
-		if ( isset( $attrs['data-shdt-switcher'] ) || isset( $attrs['data-shdt-lang'] ) || isset( $attrs['data-no-translation'] ) || isset( $attrs['data-notranslate'] ) ) {
-			return true;
-		}
-		if ( isset( $attrs['class']['v'] ) && preg_match( '/(?:^|\s)(?:notranslate|shdt-no-translate|skiptranslate)(?:\s|$)/', $attrs['class']['v'] ) ) {
-			return true;
-		}
-		if ( isset( $attrs['id']['v'] ) && 'wpadminbar' === $attrs['id']['v'] ) {
-			return true;
+		if ( $attrs ) {
+			if ( isset( $attrs['translate'] ) && 'no' === strtolower( (string) $attrs['translate']['v'] ) ) {
+				return true;
+			}
+			if ( isset( $attrs['data-shdt-switcher'] ) || isset( $attrs['data-shdt-lang'] ) || isset( $attrs['data-no-translation'] ) || isset( $attrs['data-notranslate'] ) ) {
+				return true;
+			}
+			if ( isset( $attrs['class']['v'] ) && preg_match( '/(?:^|\s)(?:notranslate|shdt-no-translate|skiptranslate)(?:\s|$)/', $attrs['class']['v'] ) ) {
+				return true;
+			}
+			if ( isset( $attrs['id']['v'] ) && 'wpadminbar' === $attrs['id']['v'] ) {
+				return true;
+			}
 		}
 		if ( $this->opt['selector'] instanceof Selector && ! $this->opt['selector']->is_empty() ) {
 			$flat = array();
@@ -608,7 +676,15 @@ class Html_Processor {
 			return;
 		}
 
-		if ( ! $translate || ! $this->opt['translate_attributes'] || ! $attrs ) {
+		if ( ! $translate || ! $attrs ) {
+			return;
+		}
+
+		if ( isset( $attrs['data-settings']['v'] ) && $this->opt['json_keys'] ) {
+			$this->json_segment( $i, 'data-settings' );
+		}
+
+		if ( ! $this->opt['translate_attributes'] ) {
 			return;
 		}
 
@@ -626,9 +702,35 @@ class Html_Processor {
 			$this->attr_segment( $i, 'label' );
 		}
 
-		if ( isset( $attrs['data-settings']['v'] ) && $this->opt['json_keys'] ) {
-			$this->json_segment( $i, 'data-settings' );
+		if ( 'form' === $name ) {
+			$this->form_fields( $i );
 		}
+	}
+
+	/**
+	 * GET forms lose the query string of their action on submit, so extra fields
+	 * (the language in "?lang=" mode) are added as hidden inputs.
+	 *
+	 * @param int $i Token index.
+	 */
+	private function form_fields( $i ) {
+		if ( ! $this->opt['form_fields'] ) {
+			return;
+		}
+		$attrs  = $this->tokens[ $i ]['attrs'];
+		$method = isset( $attrs['method']['v'] ) ? strtolower( trim( (string) $attrs['method']['v'] ) ) : 'get';
+		if ( 'get' !== $method ) {
+			return;
+		}
+		$action = isset( $attrs['action']['v'] ) ? trim( (string) $attrs['action']['v'] ) : '';
+		if ( '' !== $action && is_callable( $this->opt['localize_url'] ) && ! is_string( call_user_func( $this->opt['localize_url'], $action ) ) ) {
+			return; // External or excluded target.
+		}
+		$html = '';
+		foreach ( $this->opt['form_fields'] as $name => $value ) {
+			$html .= '<input type="hidden" name="' . Text::escape_attr( $name ) . '" value="' . Text::escape_attr( $value ) . '">';
+		}
+		$this->tokens[ $i ]['after'] = $html;
 	}
 
 	/**
@@ -1203,6 +1305,9 @@ class Html_Processor {
 				$html .= $token['out'];
 			} else {
 				$html .= self::T_OPEN === $token['t'] ? $this->render_token( $i ) : $token['raw'];
+			}
+			if ( isset( $token['after'] ) ) {
+				$html .= $token['after'];
 			}
 		}
 		return $html;

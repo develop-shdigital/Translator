@@ -173,3 +173,63 @@ shdt_assert_contains( $out, '<html dir="rtl" lang="ar">', 'rtl dir + lang added'
 list( $out ) = shdt_process( '<p><a href="/a/"><em>Read</em> the <strong>full</strong> story</a></p><div class="notranslate"><div><p>Inner</p></div><p>Still skipped</p></div><p>After</p>' );
 shdt_assert_contains( $out, '<p><a href="/de/a/">[de] <em>Read</em> the <strong>full</strong> story</a></p>', 'nested inline' );
 shdt_assert_contains( $out, '<p>Still skipped</p></div><p>[de] After</p>', 'nested skip depth' );
+
+// Review fixes -------------------------------------------------------------
+
+// Stray quotes / apostrophes in unquoted values do not destroy the tag.
+list( $out ) = shdt_process( '<div class="box""><h2>Our services</h2></div><img src=a.png alt=Don\'t>' );
+shdt_assert_contains( $out, '<div class="box""><h2>[de] Our services</h2></div>', 'stray quote keeps the tag' );
+shdt_assert_contains( $out, 'alt="[de] Don&#039;t"', 'apostrophe in unquoted value' );
+
+// Self-closing <svg/> does not switch off translation for the rest of the page.
+list( $out ) = shdt_process( '<div><svg class="spacer" width="0" height="0"/></div><p>Hello world</p><svg><svg x="1"/><path d="M0"/><text>Chart</text></svg><p>Second paragraph</p>' );
+shdt_assert_contains( $out, '<p>[de] Hello world</p>', 'after self-closing svg' );
+shdt_assert_contains( $out, '<text>Chart</text></svg><p>[de] Second paragraph</p>', 'nested self-closing svg' );
+
+// Placeholders of <textarea> and titles of <iframe> are translated, their content is not.
+list( $out ) = shdt_process( '<textarea placeholder="Your message" name="m">Keep me</textarea><iframe title="Our location map" src="/map"></iframe>' );
+shdt_assert_contains( $out, '<textarea placeholder="[de] Your message" name="m">Keep me</textarea>', 'textarea placeholder' );
+shdt_assert_contains( $out, 'title="[de] Our location map"', 'iframe title' );
+
+// Empty comments close immediately.
+list( $out ) = shdt_process( '<!--><p>Hello world</p><!---><p>Second</p>' );
+shdt_assert_contains( $out, '<!--><p>[de] Hello world</p><!---><p>[de] Second</p>', 'empty comments' );
+
+// Legacy <script><!-- document.write("<script></script>") --> stays one script.
+$legacy = "<script><!--\ndocument.write('<script src=\"a.js\"></script> Hello world');\nvar a = 1;\n//--></script><p>After</p>";
+list( $out ) = shdt_process( $legacy );
+shdt_assert_contains( $out, "document.write('<script src=\"a.js\"></script> Hello world');\nvar a = 1;\n//--></script><p>[de] After</p>", 'escaped script data' );
+
+// A stored sentence translation with broken tags is not trusted.
+$p = new Html_Processor(
+	array(
+		'translate' => function ( array $keys ) {
+			$out = array();
+			foreach ( $keys as $k ) {
+				$out[ $k ] = false !== strpos( $k, '<x1>' ) ? 'Klicken Sie <x1>hier, um mehr zu erfahren.' : '[de] ' . $k;
+			}
+			return $out;
+		},
+	)
+);
+$out = $p->process( '<p>Click <a href="/more/">here</a> to learn more.</p>' );
+shdt_assert_contains( $out, '<p>[de] Click <a href="/more/">[de] here</a> [de] to learn more.</p>', 'broken stored placeholders fall back to pieces' );
+
+// Legacy entities without ";" and Windows-1252 references.
+list( $out ) = shdt_process( '<p>&copy 2024 My Company</p><p>10&#150;20 don&#146;t</p>' );
+shdt_assert_contains( $out, '<p>[de] © 2024 My Company</p>', 'legacy entity' );
+shdt_assert_contains( $out, '<p>[de] 10–20 don’t</p>', 'cp1252 references' );
+
+// Query mode: internal GET forms get the language as a hidden field.
+list( $out ) = shdt_process( '<form role="search" method="get" action="/"><input name="s"></form><form method="post" action="/"></form><form action="https://other.test/"></form>', array( 'form_fields' => array( 'lang' => 'de' ) ) );
+shdt_assert_contains( $out, '<form role="search" method="get" action="/de/"><input type="hidden" name="lang" value="de"><input name="s">', 'hidden lang field in GET form' );
+shdt_assert_not_contains( $out, 'method="post" action="/de/"><input type="hidden"', 'no field in POST form' );
+shdt_assert_contains( $out, '<form action="https://other.test/"></form>', 'no field for external form' );
+
+// Tag-only exclusion selector on an element without attributes.
+list( $out ) = shdt_process( '<address>Bahnhofstrasse 1, Zurich</address><p>Hello</p>', array( 'selector' => new Selector( array( 'address' ) ) ) );
+shdt_assert_contains( $out, '<address>Bahnhofstrasse 1, Zurich</address><p>[de] Hello</p>', 'tag-only selector' );
+
+// Elementor rotating words are translated even with attribute translation off.
+list( $out ) = shdt_process( '<div data-settings="{&quot;rotating_text&quot;:&quot;Design\\nDevelop&quot;}">x</div>', array( 'translate_attributes' => false ) );
+shdt_assert_contains( $out, '[de] Design\\n[de] Develop', 'rotating text without attribute translation' );

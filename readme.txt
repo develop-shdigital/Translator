@@ -22,7 +22,7 @@ Activate, choose your languages, drop the Language Switcher widget into your Ele
 * Elementor widget with complete style controls, shortcode, menu item, floating switcher.
 * SEO: hreflang, html lang, canonical, og:locale, translated titles, meta descriptions and alt texts.
 * Content loaded by JavaScript (popups, AJAX, form messages) is translated too.
-* Swiss German spelling (ss instead of ß), RTL languages, 80 languages.
+* Swiss German spelling (ss instead of ß), RTL languages, 79 languages.
 
 = Free engine =
 
@@ -44,6 +44,10 @@ Add the CSS class notranslate (Elementor: Advanced → CSS Classes), a CSS selec
 = Are my manual corrections kept? =
 
 Yes. Edited translations are never overwritten automatically.
+
+= I switched to Claude, but the site still shows the old translations =
+
+Stored translations are reused. After saving the new engine, click "Re-translate them with Claude" in the notice on the settings page, or use Tools → "Re-translate with the current engine". The old texts stay online until the new ones are ready; manual edits are kept.
 
 = Are URL slugs translated? =
 

@@ -60,6 +60,13 @@ class Translator {
 	private $last_engine = array();
 
 	/**
+	 * Keys an engine actually received during the last machine_translate() call.
+	 *
+	 * @var array key => true
+	 */
+	private $attempted = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Settings  $settings  Settings.
@@ -109,13 +116,47 @@ class Translator {
 	}
 
 	/**
+	 * Id of the engine selected in the settings.
+	 *
+	 * @return string
+	 */
+	public function primary_id() {
+		return (string) $this->settings->get( 'engine', 'google' );
+	}
+
+	/**
+	 * Whether two engine ids produce the same kind of translation.
+	 * "browser" is the free Google engine running in the admin's browser.
+	 *
+	 * @param string $a Engine id.
+	 * @param string $b Engine id.
+	 * @return bool
+	 */
+	public static function same_engine( $a, $b ) {
+		$a = 'browser' === $a ? 'google' : $a;
+		$b = 'browser' === $b ? 'google' : $b;
+		return $a === $b;
+	}
+
+	/**
+	 * Engine ids whose translations count as made by $engine.
+	 *
+	 * @param string $engine Engine id.
+	 * @return string[]
+	 */
+	public static function equivalent_ids( $engine ) {
+		return 'google' === $engine || 'browser' === $engine ? array( 'google', 'browser' ) : array( $engine );
+	}
+
+	/**
 	 * Engines to try, in order.
 	 *
-	 * @param bool $include_paused Include paused engines.
+	 * @param bool        $include_paused Include paused engines.
+	 * @param string|null $lang           Target language (skips engines paused for it).
 	 * @return Engine[]
 	 */
-	public function chain( $include_paused = false ) {
-		$ids = array( (string) $this->settings->get( 'engine', 'google' ) );
+	public function chain( $include_paused = false, $lang = null ) {
+		$ids = array( $this->primary_id() );
 		if ( $this->settings->on( 'fallback_free' ) ) {
 			$ids[] = 'google';
 			$ids[] = 'mymemory';
@@ -123,7 +164,7 @@ class Translator {
 		$chain = array();
 		foreach ( array_unique( $ids ) as $id ) {
 			$engine = $this->engine( $id );
-			if ( $engine && $engine->is_available() && ( $include_paused || ! $this->paused( $id ) ) ) {
+			if ( $engine && $engine->is_available() && ( $include_paused || ! $this->paused( $id, $lang ) ) ) {
 				$chain[] = $engine;
 			}
 		}
@@ -131,39 +172,87 @@ class Translator {
 	}
 
 	/**
-	 * Pause info for an engine (circuit breaker), or false.
+	 * Transient key of a pause.
 	 *
-	 * @param string $id Engine id.
-	 * @return array|false
+	 * @param string      $id   Engine id.
+	 * @param string|null $lang Language, null for the whole engine.
+	 * @return string
 	 */
-	public function paused( $id ) {
-		return get_transient( 'shdt_pause_' . $id );
+	private static function pause_key( $id, $lang = null ) {
+		return 'shdt_pause_' . $id . ( null === $lang || '' === $lang ? '' : '_' . strtolower( preg_replace( '/[^A-Za-z0-9\-]/', '', $lang ) ) );
 	}
 
 	/**
-	 * Pause an engine.
+	 * Pause info for an engine (whole engine, or for one language), or false.
 	 *
-	 * @param string $id      Engine id.
-	 * @param int    $seconds Duration.
-	 * @param string $message Reason.
+	 * @param string      $id   Engine id.
+	 * @param string|null $lang Also check the pause of this language.
+	 * @return array|false
 	 */
-	public function pause( $id, $seconds, $message ) {
+	public function paused( $id, $lang = null ) {
+		$pause = get_transient( self::pause_key( $id ) );
+		if ( ! $pause && null !== $lang ) {
+			$pause = get_transient( self::pause_key( $id, $lang ) );
+		}
+		return $pause;
+	}
+
+	/**
+	 * Pause an engine (circuit breaker).
+	 *
+	 * @param string      $id      Engine id.
+	 * @param int         $seconds Duration.
+	 * @param string      $message Reason.
+	 * @param string|null $lang    Only this target language.
+	 */
+	public function pause( $id, $seconds, $message, $lang = null ) {
 		set_transient(
-			'shdt_pause_' . $id,
+			self::pause_key( $id, $lang ),
 			array(
 				'until'   => time() + $seconds,
 				'message' => $message,
+				'lang'    => $lang,
 			),
 			$seconds
 		);
 	}
 
 	/**
+	 * All current pauses, for the admin screens.
+	 *
+	 * @return array[] engine, label, lang, until, message
+	 */
+	public function pauses() {
+		$out   = array();
+		$langs = array_merge( array( null ), array_keys( $this->languages->active() ) );
+		foreach ( array_keys( self::engine_classes() ) as $id ) {
+			foreach ( $langs as $lang ) {
+				$pause = get_transient( self::pause_key( $id, $lang ) );
+				if ( ! is_array( $pause ) ) {
+					continue;
+				}
+				$engine = $this->engine( $id );
+				$out[]  = array(
+					'engine'  => $id,
+					'label'   => $engine ? $engine->label() : $id,
+					'lang'    => $lang,
+					'until'   => isset( $pause['until'] ) ? (int) $pause['until'] : 0,
+					'message' => isset( $pause['message'] ) ? (string) $pause['message'] : '',
+				);
+			}
+		}
+		return $out;
+	}
+
+	/**
 	 * Clear all engine pauses.
 	 */
 	public function resume_all() {
+		$langs = array_merge( array( null ), array_keys( $this->languages->active() ) );
 		foreach ( array_keys( self::engine_classes() ) as $id ) {
-			delete_transient( 'shdt_pause_' . $id );
+			foreach ( $langs as $lang ) {
+				delete_transient( self::pause_key( $id, $lang ) );
+			}
 		}
 	}
 
@@ -172,7 +261,9 @@ class Translator {
 	 *
 	 * @param string[] $keys    Keys (normalised, may contain placeholders).
 	 * @param string   $lang    Target language.
-	 * @param array    $context url, title, budget (seconds), engine (bool), queue (bool: remember misses).
+	 * @param array    $context url, title, budget (seconds), deadline (microtime shared by all calls
+	 *                          of one page view), engine (bool), queue (bool: remember misses),
+	 *                          isolate (bool: strings come from visitors, send each one on its own).
 	 * @return array key => translation (string), false (translate in pieces) or missing.
 	 */
 	public function translate_keys( array $keys, $lang, array $context = array() ) {
@@ -181,9 +272,11 @@ class Translator {
 			array(
 				'url'    => '',
 				'title'  => '',
-				'budget' => (int) $this->settings->get( 'time_budget', 20 ),
-				'engine' => true,
-				'queue'  => true,
+				'budget'   => (int) $this->settings->get( 'time_budget', 20 ),
+				'deadline' => 0,
+				'engine'   => true,
+				'queue'    => true,
+				'isolate'  => false,
 			)
 		);
 
@@ -217,10 +310,13 @@ class Translator {
 			}
 		}
 
-		if ( $missing && $context['engine'] && $context['budget'] > 0 && $this->settings->on( 'auto_translate' ) ) {
-			$source   = $this->languages->get( $this->languages->default_code() );
-			$deadline = microtime( true ) + (float) $context['budget'];
-			$results  = $this->machine_translate( array_keys( $missing ), $source, $target, $context, $deadline );
+		$deadline = microtime( true ) + (float) $context['budget'];
+		if ( $context['deadline'] > 0 ) {
+			$deadline = min( $deadline, (float) $context['deadline'] );
+		}
+		if ( $missing && $context['engine'] && $deadline - microtime( true ) >= 1 && $this->settings->on( 'auto_translate' ) ) {
+			$source  = $this->languages->get( $this->languages->default_code() );
+			$results = $this->machine_translate( array_keys( $missing ), $source, $target, $context, $deadline );
 			$this->save( $lang, $results, $context['url'] );
 			foreach ( $results as $key => $value ) {
 				$out[ $key ]                   = $value;
@@ -230,7 +326,7 @@ class Translator {
 		}
 
 		if ( $missing && $context['queue'] ) {
-			$this->store->add_pending( $lang, array_keys( $missing ), $context['url'] );
+			$this->store->add_pending( $lang, array_keys( $missing ), $context['url'], $context['isolate'] ? Store::VISITOR : '' );
 			if ( $this->settings->on( 'auto_translate' ) ) {
 				shdt()->queue()->schedule();
 			}
@@ -242,22 +338,40 @@ class Translator {
 	/**
 	 * Store machine results (false means "translate this sentence in pieces").
 	 *
+	 * Results produced by a fallback engine while the selected engine is set up
+	 * (e.g. Google while Claude was paused) are shown right away but stored as
+	 * OUTDATED, so the queue redoes them with the selected engine later.
+	 *
 	 * @param string $lang    Language.
 	 * @param array  $results key => string|false.
 	 * @param string $url     Page URL.
-	 * @param string $engine  Engine label override.
+	 * @param string $engine  Engine id override (e.g. "browser").
 	 */
 	public function save( $lang, array $results, $url = '', $engine = '' ) {
-		$items = array();
+		$primary   = $this->primary_id();
+		$engine_ok = $this->engine( $primary );
+		$upgrade   = $engine_ok && $engine_ok->is_available();
+		$items     = array();
 		foreach ( $results as $key => $value ) {
+			$by      = '' !== $engine ? $engine : ( isset( $this->last_engine[ $key ] ) ? $this->last_engine[ $key ] : '' );
 			$items[] = array(
 				'original'   => (string) $key,
 				'translated' => false === $value ? '' : (string) $value,
-				'engine'     => '' !== $engine ? $engine : ( isset( $this->last_engine[ $key ] ) ? $this->last_engine[ $key ] : '' ),
+				'engine'     => $by,
 				'url'        => $url,
+				'status'     => $upgrade && '' !== $by && ! self::same_engine( $by, $primary ) ? Store::OUTDATED : Store::AUTO,
 			);
 		}
 		$this->store->save_many( $lang, $items );
+	}
+
+	/**
+	 * Keys sent to at least one engine by the last machine_translate() call.
+	 *
+	 * @return array key => true
+	 */
+	public function attempted() {
+		return $this->attempted;
 	}
 
 	/**
@@ -267,15 +381,30 @@ class Translator {
 	 * @param array    $source   Source language.
 	 * @param array    $target   Target language.
 	 * @param array    $context  Context.
-	 * @param float    $deadline microtime deadline.
+	 * @param float    $deadline     microtime deadline.
+	 * @param bool     $primary_only Only use the selected engine (upgrading outdated rows).
 	 * @return array key => string|false
 	 */
-	public function machine_translate( array $keys, array $source, array $target, array $context, $deadline ) {
-		$results = array();
-		$todo    = array_fill_keys( $keys, true );
-		$terms   = $this->settings->lines( 'glossary' );
+	public function machine_translate( array $keys, array $source, array $target, array $context, $deadline, $primary_only = false ) {
+		$results         = array();
+		$todo            = array_fill_keys( $keys, true );
+		$terms           = $this->settings->lines( 'glossary' );
+		$this->attempted = array();
 
-		foreach ( $this->chain() as $engine ) {
+		$chain = $this->chain( false, $target['code'] );
+		if ( $primary_only ) {
+			$primary = $this->primary_id();
+			$chain   = array_values(
+				array_filter(
+					$chain,
+					function ( $engine ) use ( $primary ) {
+						return $engine->id() === $primary;
+					}
+				)
+			);
+		}
+
+		foreach ( $chain as $engine ) {
 			if ( ! $todo || microtime( true ) >= $deadline ) {
 				break;
 			}
@@ -292,7 +421,10 @@ class Translator {
 				}
 			}
 
-			$batches = $this->batch( $prepared, $engine->max_batch(), $engine->max_chars() );
+			// Text typed or injected by visitors never shares an AI request with
+			// site texts, so instructions hidden in it cannot steer their translation.
+			$max_batch = ! empty( $context['isolate'] ) && $engine instanceof Engines\AI_Engine ? 1 : $engine->max_batch();
+			$batches   = $this->batch( $prepared, $max_batch, $engine->max_chars() );
 			if ( ! $batches ) {
 				continue;
 			}
@@ -302,6 +434,12 @@ class Translator {
 			}
 
 			$answers = $engine->translate_batches( $payload, $source, $target, $context, $deadline );
+			$sent    = method_exists( $engine, 'sent' ) ? $engine->sent() : array_keys( $batches );
+			foreach ( $sent as $index ) {
+				foreach ( array_keys( $batches[ $index ] ) as $key ) {
+					$this->attempted[ (string) $key ] = true;
+				}
+			}
 
 			foreach ( $batches as $index => $batch ) {
 				if ( empty( $answers[ $index ] ) ) {
@@ -325,7 +463,8 @@ class Translator {
 
 			$error = $engine->error();
 			if ( $error && $error->pause > 0 ) {
-				$this->pause( $engine->id(), $error->pause, $error->getMessage() );
+				$lang = Engines\Engine_Exception::SCOPE_LANGUAGE === $error->scope ? $target['code'] : null;
+				$this->pause( $engine->id(), $error->pause, $error->getMessage(), $lang );
 			}
 		}
 
@@ -399,31 +538,44 @@ class Translator {
 	/**
 	 * Translate queued strings (background).
 	 *
-	 * @param array $rows     Rows with id, lang, original.
+	 * Missing translations use the whole engine chain. Outdated ones (made by a
+	 * fallback or a previous engine) are only redone by the selected engine;
+	 * while it is paused they are left alone and keep showing the old text.
+	 *
+	 * @param array $rows     Rows with id, lang, original, status.
 	 * @param float $deadline microtime deadline.
 	 * @return array [ translated count, failed count ]
 	 */
 	public function translate_rows( array $rows, $deadline ) {
-		$by_lang = array();
+		$groups = array();
 		foreach ( $rows as $row ) {
-			$by_lang[ $row['lang'] ][ $row['original'] ] = (int) $row['id'];
+			$upgrade = isset( $row['status'] ) && Store::OUTDATED === (int) $row['status'];
+			$isolate = isset( $row['engine'] ) && Store::VISITOR === $row['engine'];
+			$groups[ $row['lang'] . '|' . ( $upgrade ? 1 : 0 ) . '|' . ( $isolate ? 1 : 0 ) ][ $row['original'] ] = (int) $row['id'];
 		}
 
 		$done   = 0;
 		$failed = array();
 		$source = $this->languages->get( $this->languages->default_code() );
-		foreach ( $by_lang as $lang => $originals ) {
-			$target = $this->languages->get( $lang );
+		foreach ( $groups as $group => $originals ) {
+			list( $lang, $upgrade, $isolate ) = explode( '|', $group );
+			$target                           = $this->languages->get( $lang );
 			if ( ! $target || $this->languages->is_default( $lang ) ) {
 				$failed = array_merge( $failed, array_values( $originals ) );
 				continue;
 			}
-			$results = microtime( true ) < $deadline ? $this->machine_translate( array_map( 'strval', array_keys( $originals ) ), $source, $target, array(), $deadline ) : array();
+			if ( microtime( true ) >= $deadline ) {
+				break;
+			}
+			$keys    = array_map( 'strval', array_keys( $originals ) );
+			$results = $this->machine_translate( $keys, $source, $target, array( 'isolate' => '1' === $isolate ), $deadline, '1' === $upgrade );
+			$tried   = $this->attempted();
 			$this->save( $lang, $results );
 			$done += count( $results );
 			foreach ( $originals as $original => $id ) {
-				if ( ! array_key_exists( (string) $original, $results ) ) {
-					$failed[] = $id;
+				$original = (string) $original;
+				if ( ! array_key_exists( $original, $results ) && isset( $tried[ $original ] ) ) {
+					$failed[] = $id; // Sent but not translated. Rows never sent keep their attempts.
 				}
 			}
 		}
@@ -433,6 +585,11 @@ class Translator {
 
 	/**
 	 * Translate a visitor's search term back into the site language.
+	 *
+	 * Known translations are looked up in the database. Anything else costs an
+	 * engine call, so those are limited: short terms only, a few per visitor
+	 * and a daily cap for the whole site (filters shdt_search_rate_limit and
+	 * shdt_search_daily_limit).
 	 *
 	 * @param string $text Search term.
 	 * @param string $lang Language it was typed in.
@@ -447,17 +604,52 @@ class Translator {
 		if ( null !== $original && ! Text::has_placeholders( $original ) ) {
 			return $original;
 		}
+		$length = function_exists( 'mb_strlen' ) ? mb_strlen( $text, 'UTF-8' ) : strlen( $text );
+		if ( $length > 100 || ! $this->settings->on( 'auto_translate' ) ) {
+			return $text;
+		}
 		$cache_key = 'shdt_rev_' . md5( $lang . '|' . $text );
 		$cached    = get_transient( $cache_key );
 		if ( is_string( $cached ) ) {
 			return $cached;
 		}
-		$source  = $this->languages->get( $lang );
-		$target  = $this->languages->get( $this->languages->default_code() );
-		$results = $source && $target ? $this->machine_translate( array( $text ), $source, $target, array(), microtime( true ) + 5 ) : array();
-		$result  = isset( $results[ $text ] ) && is_string( $results[ $text ] ) ? $results[ $text ] : $text;
-		set_transient( $cache_key, $result, WEEK_IN_SECONDS );
-		return $result;
+
+		$source = $this->languages->get( $lang );
+		$target = $this->languages->get( $this->languages->default_code() );
+		if ( ! $source || ! $target ) {
+			return $text;
+		}
+		$ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '0';
+		if ( ! self::take( 'shdt_rev_rl_' . md5( $ip ), (int) apply_filters( 'shdt_search_rate_limit', 20 ), 10 * MINUTE_IN_SECONDS )
+			|| ! self::take( 'shdt_rev_day_' . gmdate( 'Ymd' ), (int) apply_filters( 'shdt_search_daily_limit', 500 ), DAY_IN_SECONDS ) ) {
+			return $text;
+		}
+
+		$results = $this->machine_translate( array( $text ), $source, $target, array( 'isolate' => true ), microtime( true ) + 5 );
+		if ( isset( $results[ $text ] ) && is_string( $results[ $text ] ) ) {
+			set_transient( $cache_key, $results[ $text ], WEEK_IN_SECONDS );
+			return $results[ $text ];
+		}
+		// No engine answered (paused, offline): try again a little later.
+		set_transient( $cache_key, $text, 5 * MINUTE_IN_SECONDS );
+		return $text;
+	}
+
+	/**
+	 * Take one unit from a counter kept in a transient.
+	 *
+	 * @param string $key   Transient name.
+	 * @param int    $limit Units available.
+	 * @param int    $ttl   Lifetime in seconds.
+	 * @return bool False when the limit is reached.
+	 */
+	private static function take( $key, $limit, $ttl ) {
+		$used = (int) get_transient( $key );
+		if ( $used >= $limit ) {
+			return false;
+		}
+		set_transient( $key, $used + 1, $ttl );
+		return true;
 	}
 
 	/**
@@ -484,7 +676,8 @@ class Translator {
 		$sample  = 'Welcome! <x1>Discover</x1> our services and get in touch today.';
 		$answers = $engine->translate_batches( array( array( $sample ) ), $source, $target, array(), microtime( true ) + 30 );
 		if ( ! empty( $answers[0][0] ) ) {
-			delete_transient( 'shdt_pause_' . $id );
+			delete_transient( self::pause_key( $id ) );
+			delete_transient( self::pause_key( $id, $target['code'] ) );
 			return array( true, $answers[0][0] );
 		}
 		$error = $engine->error();

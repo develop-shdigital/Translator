@@ -91,6 +91,8 @@
 .shdt-badge--0 { background: #fcf0d4; color: #8a5a00; }
 .shdt-badge--1 { background: #e7f0fb; color: #1b4f8a; }
 .shdt-badge--2 { background: var(--shdt-green-soft); color: var(--shdt-green); }
+.shdt-badge--3 { background: #f0e8fb; color: #5b2d91; }
+.shdt-inline-form { display: inline-block; margin: 0 6px 0 0; }
 .ui-sortable-helper { display: table; background: #fff; box-shadow: 0 8px 20px rgba(0,0,0,.12); }
 .shdt-add { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 

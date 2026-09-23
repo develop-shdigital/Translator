@@ -13,19 +13,31 @@
 		return Array.prototype.slice.call(sw.querySelectorAll('.shdt-switcher__item'));
 	}
 
-	// Keep the dropdown inside the viewport (switchers near the screen edge).
+	// Keep the dropdown inside the viewport (switchers near the screen edge,
+	// long language lists in fixed headers or the floating switcher).
 	function fit(sw) {
 		var menu = sw.querySelector('.shdt-switcher__menu');
 		if (!menu) {
 			return;
 		}
-		sw.classList.remove('shdt-switcher--fit-left', 'shdt-switcher--fit-right');
+		sw.classList.remove('shdt-switcher--fit-left', 'shdt-switcher--fit-right', 'shdt-switcher--scroll');
+		menu.style.maxHeight = '';
 		var rect = menu.getBoundingClientRect();
 		var width = document.documentElement.clientWidth;
 		if (rect.left < 8) {
 			sw.classList.add('shdt-switcher--fit-left');
 		} else if (rect.right > width - 8) {
 			sw.classList.add('shdt-switcher--fit-right');
+		}
+		var toggle = toggleOf(sw);
+		if (toggle) {
+			var box = toggle.getBoundingClientRect();
+			var up = sw.classList.contains('shdt-switcher--up');
+			var space = (up ? box.top : window.innerHeight - box.bottom) - 16;
+			if (menu.scrollHeight > space) {
+				menu.style.maxHeight = Math.max(120, Math.floor(space)) + 'px';
+				sw.classList.add('shdt-switcher--scroll');
+			}
 		}
 	}
 
@@ -87,6 +99,14 @@
 		}
 	});
 
+	// iOS does not send clicks on plain page areas to document listeners.
+	document.addEventListener('pointerdown', function (event) {
+		var target = event.target;
+		if (target && target.closest && !target.closest('.shdt-switcher')) {
+			closeAll(null);
+		}
+	}, { passive: true });
+
 	document.addEventListener('keydown', function (event) {
 		var target = event.target;
 		if (!target || !target.closest) {
@@ -94,6 +114,10 @@
 		}
 		var sw = target.closest('.shdt-switcher');
 		if (!sw || !toggleOf(sw)) {
+			// Focus stayed on the page (Safari does not focus buttons on click).
+			if (event.key === 'Escape') {
+				closeAll(null);
+			}
 			return;
 		}
 		var list = items(sw);
@@ -145,14 +169,20 @@
 		}, 0);
 	});
 
-	// Hover mode: keep aria-expanded in sync for assistive technology.
-	document.addEventListener('mouseover', function (event) {
+	// Hover mode: open for a real mouse and keep aria-expanded in sync. Touch
+	// devices send a fake hover before the click, so they use the click toggle.
+	var pointer = 'PointerEvent' in window;
+	document.addEventListener(pointer ? 'pointerover' : 'mouseover', function (event) {
+		if (pointer && event.pointerType !== 'mouse') {
+			return;
+		}
 		var sw = event.target && event.target.closest ? event.target.closest('.shdt-switcher--hover') : null;
 		if (sw && !sw.classList.contains(OPEN)) {
 			closeAll(sw);
 			setOpen(sw, true);
-			sw.addEventListener('mouseleave', function leave() {
-				sw.removeEventListener('mouseleave', leave);
+			var type = pointer ? 'pointerleave' : 'mouseleave';
+			sw.addEventListener(type, function leave() {
+				sw.removeEventListener(type, leave);
 				setOpen(sw, false);
 			});
 		}
