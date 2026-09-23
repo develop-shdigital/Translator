@@ -230,7 +230,7 @@ shdt_assert( ! $out && $e->error() && 1800 === $e->error()->pause && ! $failures
 
 // Engine health: a failure is remembered until the engine answers again.
 $GLOBALS['shdt_test_options'] = array();
-SHDT\Engines\Base_Engine::log( 'openai', 'HTTP 429: no credit' );
+SHDT\Engines\Base_Engine::record_failure( 'openai', ( new Engine_Exception( 'HTTP 429: no credit', 1800 ) )->kind( 'billing', 'no credit' )->record() );
 $failing = SHDT\Engines\Base_Engine::failing( 'openai' );
 shdt_assert( $failing && 'HTTP 429: no credit' === $failing['message'], 'failure is recorded' );
 $GLOBALS['shdt_test_options']['shdt_engine_health']['openai']['time'] = time() - 10;
@@ -247,3 +247,44 @@ shdt_assert( Admin::same_server( 'https://api.openai.com/v1/', 'https://API.Open
 shdt_assert( Admin::same_server( 'https://api.openai.com/v1', 'https://api.openai.com:443/v2' ), 'path and default port do not matter' );
 shdt_assert( ! Admin::same_server( 'http://api.openai.com/v1', 'https://api.openai.com/v1' ), 'http is another server' );
 shdt_assert( ! Admin::same_server( 'https://openrouter.ai/api/v1', 'https://api.openai.com/v1' ), 'other host is another server' );
+
+shdt_assert( false !== strpos( Engine_Exception::describe( $failing, 'OpenAI' ), 'no credit left' ), 'failure described in the admin language from its kind' );
+SHDT\Engines\Base_Engine::record_failure( 'openai', ( new Engine_Exception( 'x' ) )->record() );
+SHDT\Engines\Base_Engine::forget( 'openai' );
+shdt_assert( null === SHDT\Engines\Base_Engine::failing( 'openai' ), 'forget() clears a failure' );
+
+// Review findings: parsing prefers the real answer and rejects echoes.
+$e = shdt_test_openai();
+$two = array( 'Hello', 'World' );
+shdt_assert( array( 'Hallo', 'Welt' ) === $e->parse( $two, 200, shdt_test_completion( "Input strings: [\"Hello\",\"World\"]\nOutput: {\"translations\":[\"Hallo\",\"Welt\"]}" ) ), 'quoted input before the answer is skipped' );
+shdt_assert( array( 'Hallo', 'Welt' ) === $e->parse( $two, 200, shdt_test_completion( 'Note [1]: done. {"translations":["Hallo","Welt"]}' ) ), 'bracket in prose before the answer' );
+shdt_assert( array( 'Hallo', 'Welt' ) === $e->parse( $two, 200, shdt_test_completion( array( 'translations' => array( array( 'text' => 'Hello', 'translated_text' => 'Hallo' ), array( 'text' => 'World', 'translated_text' => 'Welt' ) ) ) ) ), 'translated_text wins over text' );
+$echo = shdt_test_catch( function () use ( $e, $two ) {
+	$e->parse( $two, 200, shdt_test_completion( array( 'page' => 'Home', 'strings' => array( 'Hello', 'World' ) ) ) );
+} );
+shdt_assert( $echo && 'echo' === $echo->kind && ! $echo->split, 'an echoed request is rejected, not stored' );
+$t0 = microtime( true );
+AI_Engine::extract_translations( str_repeat( '[{', 20000 ) );
+shdt_assert( microtime( true ) - $t0 < 1, 'bracket-heavy answers are parsed in linear time', (string) ( microtime( true ) - $t0 ) );
+
+// Review findings: error classes.
+$router = $e->api_error( 400, array( 'message' => 'openai/gpt-4o-minii is not a valid model ID', 'code' => 400 ), '' );
+shdt_assert( 1800 === $router->pause, 'OpenRouter "not a valid model ID" pauses', (string) $router->pause );
+$filter = $e->api_error( 400, array( 'message' => 'The response was filtered', 'code' => 'content_filter', 'param' => 'prompt' ), '' );
+shdt_assert( $filter->split && $filter->counts, 'prompt content filter isolates the flagged text' );
+$html = shdt_test_catch( function () use ( $e, $two ) {
+	$e->parse( $two, 200, '<html><body>Welcome to nginx</body></html>' );
+} );
+shdt_assert( $html && ! $html->split && ! $html->counts && $html->pause > 0 && 'no_completion' === $html->kind, 'a non-API answer (wrong base URL) pauses without splitting' );
+
+// Review findings: splitting is capped and stops when all parts fail.
+$e = shdt_test_openai();
+for ( $i = 0; $i < 60; $i++ ) {
+	$e->answers[] = array( 200, shdt_test_completion( 'I can only answer in prose, sorry.' ) );
+}
+$twenty = array();
+for ( $i = 1; $i <= 20; $i++ ) {
+	$twenty[] = "Text $i";
+}
+$e->translate_batches( array( $twenty ), array(), array(), array(), microtime( true ) + 30 );
+shdt_assert( count( $e->bodies ) <= 3, 'a batch that always fails costs at most one split level', (string) count( $e->bodies ) );

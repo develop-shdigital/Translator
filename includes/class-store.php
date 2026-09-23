@@ -78,12 +78,13 @@ class Store {
 			$in   = implode( ',', array_fill( 0, count( $chunk ), '%s' ) );
 			$args = array_merge( array( $lang ), $chunk );
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-			$rows = $wpdb->get_results( $wpdb->prepare( "SELECT id, hash, translated, status FROM {$table} WHERE lang = %s AND hash IN ({$in})", $args ), ARRAY_A );
+			$rows = $wpdb->get_results( $wpdb->prepare( "SELECT id, hash, translated, status, attempts FROM {$table} WHERE lang = %s AND hash IN ({$in})", $args ), ARRAY_A );
 			foreach ( (array) $rows as $row ) {
 				$out[ $row['hash'] ] = array(
 					'id'         => (int) $row['id'],
 					'translated' => $row['translated'],
 					'status'     => (int) $row['status'],
+					'attempts'   => (int) $row['attempts'],
 				);
 			}
 		}
@@ -108,7 +109,7 @@ class Store {
 			$values = array();
 			$args   = array();
 			foreach ( $chunk as $item ) {
-				$values[] = '(%s,%s,%s,%s,%s,%d,%s,%s,%s,%s)';
+				$values[] = '(%s,%s,%s,%s,%s,%d,%s,%s,%s,%s,%s)';
 				array_push(
 					$args,
 					$lang,
@@ -118,14 +119,17 @@ class Store {
 					self::hash( Text::normalize( $item['translated'] ) ),
 					isset( $item['status'] ) && self::OUTDATED === $item['status'] ? self::OUTDATED : self::AUTO,
 					isset( $item['engine'] ) ? substr( (string) $item['engine'], 0, 32 ) : '',
+					isset( $item['origin'] ) ? substr( (string) $item['origin'], 0, 16 ) : '',
 					isset( $item['url'] ) ? substr( (string) $item['url'], 0, 255 ) : '',
 					$now,
 					$now
 				);
 			}
-			$sql = "INSERT INTO {$table} (lang,hash,original,translated,thash,status,engine,url,created_at,updated_at) VALUES "
+			$sql = "INSERT INTO {$table} (lang,hash,original,translated,thash,status,engine,origin,url,created_at,updated_at) VALUES "
 				. implode( ',', $values )
 				. ' ON DUPLICATE KEY UPDATE'
+				// Text that came from visitors stays marked, whatever translates it.
+				. " origin = IF(origin = '', VALUES(origin), origin),"
 				. ' translated = IF(status = 2, translated, VALUES(translated)),'
 				. ' thash = IF(status = 2, thash, VALUES(thash)),'
 				. ' engine = IF(status = 2, engine, VALUES(engine)),'
@@ -157,10 +161,10 @@ class Store {
 			$values = array();
 			$args   = array();
 			foreach ( $chunk as $original ) {
-				$values[] = '(%s,%s,%s,NULL,%d,%s,%s,%s,%s)';
-				array_push( $args, $lang, self::hash( $original ), $original, self::PENDING, substr( (string) $source, 0, 32 ), substr( (string) $url, 0, 255 ), $now, $now );
+				$values[] = '(%s,%s,%s,NULL,%d,%s,%s,%s,%s,%s)';
+				array_push( $args, $lang, self::hash( $original ), $original, self::PENDING, substr( (string) $source, 0, 32 ), substr( (string) $source, 0, 16 ), substr( (string) $url, 0, 255 ), $now, $now );
 			}
-			$sql = "INSERT IGNORE INTO {$table} (lang,hash,original,translated,status,engine,url,created_at,updated_at) VALUES " . implode( ',', $values );
+			$sql = "INSERT IGNORE INTO {$table} (lang,hash,original,translated,status,engine,origin,url,created_at,updated_at) VALUES " . implode( ',', $values );
 			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 			$wpdb->query( $wpdb->prepare( $sql, $args ) );
 		}
@@ -174,7 +178,7 @@ class Store {
 	 * @param string[] $langs    Languages; null = the active target languages
 	 *                           (rows of removed languages wait until they are added again).
 	 * @param int[]    $exclude  Row ids to leave out (already tried in this run).
-	 * @return array id, lang, original, status, engine
+	 * @return array id, lang, original, status, engine, origin
 	 */
 	public function get_pending( $limit = 200, array $statuses = array( self::PENDING, self::OUTDATED ), $langs = null, array $exclude = array() ) {
 		global $wpdb;
@@ -185,7 +189,7 @@ class Store {
 			$where .= ' AND id NOT IN (' . implode( ',', $exclude ) . ')';
 		}
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $where is prepared in pending_where().
-		return (array) $wpdb->get_results( $wpdb->prepare( "SELECT id, lang, original, status, engine FROM {$table} WHERE {$where} ORDER BY status ASC, attempts ASC, id ASC LIMIT %d", $limit ), ARRAY_A );
+		return (array) $wpdb->get_results( $wpdb->prepare( "SELECT id, lang, original, status, engine, origin FROM {$table} WHERE {$where} ORDER BY status ASC, attempts ASC, id ASC LIMIT %d", $limit ), ARRAY_A );
 	}
 
 	/**
@@ -249,7 +253,7 @@ class Store {
 	 * too often). Cached for a few minutes.
 	 *
 	 * @param string[] $engines Engine ids that count as "current".
-	 * @return array { auto, outdated, stuck, total, engines: id => count }
+	 * @return array { auto, outdated, stuck, total, engines: id => count, fallback: id => count (outdated and stuck rows only) }
 	 */
 	public function count_fallback( array $engines ) {
 		$key    = md5( implode( ',', $engines ) );
@@ -271,6 +275,7 @@ class Store {
 			'stuck'    => 0,
 			'total'    => 0,
 			'engines'  => array(),
+			'fallback' => array(),
 		);
 		foreach ( $rows as $row ) {
 			$n = (int) $row['n'];
@@ -284,8 +289,12 @@ class Store {
 			$out['total'] += $n;
 
 			$out['engines'][ $row['engine'] ] = ( isset( $out['engines'][ $row['engine'] ] ) ? $out['engines'][ $row['engine'] ] : 0 ) + $n;
+			if ( 3 === (int) $row['status'] ) {
+				$out['fallback'][ $row['engine'] ] = ( isset( $out['fallback'][ $row['engine'] ] ) ? $out['fallback'][ $row['engine'] ] : 0 ) + $n;
+			}
 		}
 		arsort( $out['engines'] );
+		arsort( $out['fallback'] );
 
 		$cached         = is_array( $cached ) ? $cached : array();
 		$cached[ $key ] = $out;
@@ -353,6 +362,25 @@ class Store {
 		$table = self::table();
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- IDs are absint() above.
 		$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET attempts = attempts + 1, updated_at = %s WHERE id IN (" . implode( ',', $ids ) . ')', self::now() ) );
+		delete_transient( self::FALLBACK_COUNTS );
+	}
+
+	/**
+	 * When rows that used up their attempts are due for their daily retry.
+	 *
+	 * @return int|null Unix time, null when there are none.
+	 */
+	public function next_retry() {
+		global $wpdb;
+		$table = self::table();
+		$langs = array_keys( shdt()->languages()->targets() );
+		if ( ! $langs ) {
+			return null;
+		}
+		$in = implode( ',', array_fill( 0, count( $langs ), '%s' ) );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- placeholders built above.
+		$oldest = $wpdb->get_var( $wpdb->prepare( "SELECT MIN(updated_at) FROM {$table} WHERE status IN (0, 3) AND attempts >= %d AND lang IN ({$in})", array_merge( array( self::MAX_ATTEMPTS ), $langs ) ) );
+		return $oldest ? (int) strtotime( $oldest . ' UTC' ) + DAY_IN_SECONDS : null;
 	}
 
 	/**

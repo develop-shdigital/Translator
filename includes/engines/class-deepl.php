@@ -35,6 +35,15 @@ class Deepl extends Base_Engine {
 	}
 
 	/**
+	 * Settings that still have to be filled in.
+	 *
+	 * @return string[]
+	 */
+	public function missing() {
+		return $this->is_available() ? array() : array( __( 'API key', 'shd-translator' ) );
+	}
+
+	/**
 	 * {@inheritDoc}
 	 */
 	public function max_batch() {

@@ -35,6 +35,15 @@ class Libretranslate extends Base_Engine {
 	}
 
 	/**
+	 * Settings that still have to be filled in.
+	 *
+	 * @return string[]
+	 */
+	public function missing() {
+		return $this->is_available() ? array() : array( __( 'Server URL', 'shd-translator' ) );
+	}
+
+	/**
 	 * {@inheritDoc}
 	 */
 	protected function timeout() {

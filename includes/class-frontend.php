@@ -254,6 +254,10 @@ class Frontend {
 			if ( ! headers_sent() ) {
 				header( 'X-SHDT-Pending: ' . (int) $processor->missing() );
 			}
+		} elseif ( $this->plugin->translator()->upgrade_pending() ) {
+			// Fallback texts that the selected engine redoes within minutes: do not let
+			// page caches keep this version for hours.
+			$this->no_cache();
 		}
 
 		if ( $this->is_editor() ) {

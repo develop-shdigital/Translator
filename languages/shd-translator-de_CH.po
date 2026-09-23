@@ -67,12 +67,12 @@ msgstr "Entfernen"
 #: includes/admin/class-admin.php:138
 #: includes/admin/views/settings.php:72
 #: includes/admin/views/strings.php:83
-#: includes/class-frontend.php:391
+#: includes/class-frontend.php:395
 msgid "Original"
 msgstr "Original"
 
 #: includes/admin/class-admin.php:139
-#: includes/class-frontend.php:386
+#: includes/class-frontend.php:390
 msgid "Saved"
 msgstr "Gespeichert"
 
@@ -180,44 +180,48 @@ msgstr "SHD Translator übersetzt Ihre Website mit dem kostenlosen Google Übers
 msgid "Choose the engine"
 msgstr "Dienst wählen"
 
+#: includes/admin/class-admin.php:256
+msgid "The API base URL was not saved: enter the full address including http:// or https://, e.g. http://localhost:11434/v1."
+msgstr "Die API-Basis-URL wurde nicht gespeichert: Geben Sie die vollständige Adresse mit http:// oder https:// ein, z. B. http://localhost:11434/v1."
+
 #. translators: %s: server name, e.g. api.example.com
-#: includes/admin/class-admin.php:260
+#: includes/admin/class-admin.php:268
 #, php-format
 msgid "The saved API key was removed because the API address changed to %s. Enter the key for that server and save again."
 msgstr "Der gespeicherte API-Schlüssel wurde entfernt, weil sich die API-Adresse auf %s geändert hat. Geben Sie den Schlüssel für diesen Server ein und speichern Sie erneut."
 
-#: includes/admin/class-admin.php:271
+#: includes/admin/class-admin.php:279
 msgid "These exclusion selectors are not supported and are ignored:"
 msgstr "Diese Ausschluss-Selektoren werden nicht unterstützt und ignoriert:"
 
-#: includes/admin/class-admin.php:273
+#: includes/admin/class-admin.php:281
 msgid "Use one element per rule without spaces, \">\" or \":\" – for example \".site-footer\" instead of \".site-footer p\". Everything inside a matching element is excluded anyway."
 msgstr "Beschreiben Sie pro Regel ein Element, ohne Leerzeichen, «>» oder «:» – zum Beispiel «.site-footer» statt «.site-footer p». Alles innerhalb eines passenden Elements ist ohnehin ausgeschlossen."
 
 #. translators: 1: number of texts, 2: engine name
-#: includes/admin/class-admin.php:286
+#: includes/admin/class-admin.php:297
 #, php-format
 msgid "%1$s text on your site was translated by another engine than %2$s."
 msgid_plural "%1$s texts on your site were translated by other engines than %2$s."
 msgstr[0] "%1$s Text Ihrer Website wurde von einem anderen Dienst als %2$s übersetzt."
 msgstr[1] "%1$s Texte Ihrer Website wurden von anderen Diensten als %2$s übersetzt."
 
-#: includes/admin/class-admin.php:291
+#: includes/admin/class-admin.php:302
 msgid "Stored translations are reused, so they stay as they are unless you re-translate them. The current texts remain online until the new ones are ready; your manual edits are kept."
 msgstr "Gespeicherte Übersetzungen werden wiederverwendet und bleiben daher unverändert, bis Sie sie neu übersetzen lassen. Die aktuellen Texte bleiben online, bis die neuen bereit sind; Ihre manuellen Bearbeitungen bleiben erhalten."
 
 #. translators: %s: engine name
-#: includes/admin/class-admin.php:293
+#: includes/admin/class-admin.php:304
 #, php-format
 msgid "Re-translate them with %s"
 msgstr "Mit %s neu übersetzen"
 
-#: includes/admin/class-admin.php:294
+#: includes/admin/class-admin.php:305
 msgid "Keep the current translations"
 msgstr "Aktuelle Übersetzungen behalten"
 
 #. translators: 1: number of texts, 2: engine names, 3: selected engine
-#: includes/admin/class-admin.php:302
+#: includes/admin/class-admin.php:313
 #, php-format
 msgid "%1$s text currently comes from %2$s and is being re-translated with %3$s in the background."
 msgid_plural "%1$s texts currently come from %2$s and are being re-translated with %3$s in the background."
@@ -225,37 +229,37 @@ msgstr[0] "%1$s Text stammt derzeit von %2$s und wird im Hintergrund mit %3$s ne
 msgstr[1] "%1$s Texte stammen derzeit von %2$s und werden im Hintergrund mit %3$s neu übersetzt."
 
 #. translators: %s: permalinks URL
-#: includes/admin/class-admin.php:317
+#: includes/admin/class-admin.php:328
 #, php-format
 msgid "Language folders (/de/) need pretty permalinks, so your translated pages use addresses like \"?lang=de\" for now. <a href=\"%s\">Choose a permalink structure</a> to get /de/ addresses."
 msgstr "Sprachordner (/fr/) benötigen sprechende Permalinks, deshalb verwenden Ihre übersetzten Seiten vorerst Adressen wie «?lang=fr». <a href=\"%s\">Wählen Sie eine Permalink-Struktur</a>, um /fr/-Adressen zu erhalten."
 
 #. translators: 1: engine name, 2: missing settings, e.g. "API key"
-#: includes/admin/class-admin.php:340
+#: includes/admin/class-admin.php:351
 #, php-format
 msgid "SHD Translator: %1$s is selected but not set up yet (%2$s missing)."
 msgstr "SHD Translator: %1$s ist gewählt, aber noch nicht eingerichtet (%2$s fehlt)."
 
 #. translators: %s: engine name
-#: includes/admin/class-admin.php:342
+#: includes/admin/class-admin.php:353
 #, php-format
 msgid "SHD Translator: %s is selected but not set up yet."
 msgstr "SHD Translator: %s ist gewählt, aber noch nicht eingerichtet."
 
 #. translators: 1: engine name, 2: language in brackets or empty, 3: time
-#: includes/admin/class-admin.php:348
+#: includes/admin/class-admin.php:359
 #, php-format
 msgid "SHD Translator: %1$s%2$s is paused for %3$s:"
 msgstr "SHD Translator: %1$s%2$s ist für %3$s pausiert:"
 
 #. translators: 1: engine name, 2: time, e.g. "5 minutes"
-#: includes/admin/class-admin.php:358
+#: includes/admin/class-admin.php:369
 #, php-format
 msgid "SHD Translator: %1$s failed %2$s ago:"
 msgstr "SHD Translator: %1$s ist vor %2$s fehlgeschlagen:"
 
 #. translators: 1: engine names, 2: number of texts, 3: selected engine
-#: includes/admin/class-admin.php:370
+#: includes/admin/class-admin.php:381
 #, php-format
 msgid "Until it works, %1$s translates your site instead (%2$s text so far); those texts are redone with %3$s automatically afterwards."
 msgid_plural "Until it works, %1$s translates your site instead (%2$s texts so far); those texts are redone with %3$s automatically afterwards."
@@ -263,31 +267,44 @@ msgstr[0] "Bis er funktioniert, übersetzt %1$s Ihre Website an seiner Stelle (b
 msgstr[1] "Bis er funktioniert, übersetzt %1$s Ihre Website an seiner Stelle (bisher %2$s Texte); diese Texte werden danach automatisch mit %3$s neu übersetzt."
 
 #. translators: 1: engine names, 2: selected engine
-#: includes/admin/class-admin.php:377
+#: includes/admin/class-admin.php:388
 #, php-format
 msgid "Until it works, %1$s translates new texts instead; they are redone with %2$s automatically afterwards."
 msgstr "Bis er funktioniert, übersetzt %1$s neue Texte an seiner Stelle; sie werden danach automatisch mit %2$s neu übersetzt."
 
-#: includes/admin/class-admin.php:382
+#: includes/admin/class-admin.php:393
 msgid "Until it works, new texts stay in the original language (\"Fall back to the free engines\" is off)."
 msgstr "Bis er funktioniert, bleiben neue Texte in der Originalsprache («Auf die kostenlosen Dienste ausweichen» ist ausgeschaltet)."
 
-#: includes/admin/class-admin.php:386
+#: includes/admin/class-admin.php:398
 msgid "Set it up"
 msgstr "Jetzt einrichten"
 
-#: includes/admin/class-admin.php:387
+#: includes/admin/class-admin.php:401
+msgid "Fix the cause, then click \"Resume now\" under Tools"
+msgstr "Beheben Sie die Ursache und klicken Sie dann unter Werkzeuge auf «Jetzt fortsetzen»"
+
+#: includes/admin/class-admin.php:403
+#: includes/admin/views/settings.php:312
+msgid "Test the saved engine"
+msgstr "Gespeicherten Dienst testen"
+
+#: includes/admin/class-admin.php:404
+msgid "Open the settings"
+msgstr "Einstellungen öffnen"
+
+#: includes/admin/class-admin.php:406
 msgid "Fix the cause, then click \"Test the saved engine\""
 msgstr "Beheben Sie die Ursache und klicken Sie dann auf «Gespeicherten Dienst testen»"
 
-#: includes/admin/class-admin.php:404
-#: includes/admin/class-admin.php:516
-#: includes/admin/class-admin.php:544
-#: includes/admin/class-admin.php:572
+#: includes/admin/class-admin.php:424
+#: includes/admin/class-admin.php:550
+#: includes/admin/class-admin.php:578
+#: includes/admin/class-admin.php:614
 msgid "Sorry, you are not allowed to do that."
 msgstr "Sie haben leider keine Berechtigung dafür."
 
-#: includes/admin/class-engine-status.php:95
+#: includes/admin/class-engine-status.php:98
 msgid "Google Translate (in your browser)"
 msgstr "Google Übersetzer (in Ihrem Browser)"
 
@@ -404,8 +421,8 @@ msgstr "Originalsprache"
 #: includes/admin/views/settings.php:164
 #: includes/admin/views/strings.php:53
 #: includes/admin/views/strings.php:82
-#: includes/admin/views/tools.php:194
-#: includes/admin/views/tools.php:233
+#: includes/admin/views/tools.php:206
+#: includes/admin/views/tools.php:245
 msgid "Language"
 msgstr "Sprache"
 
@@ -525,11 +542,14 @@ msgid "API base URL"
 msgstr "API-Basis-URL"
 
 #: includes/admin/views/settings.php:284
+#: includes/engines/class-anthropic.php:62
+#: includes/engines/class-deepl.php:43
 #: includes/engines/class-openai.php:104
 msgid "API key"
 msgstr "API-Schlüssel"
 
 #: includes/admin/views/settings.php:295
+#: includes/engines/class-libretranslate.php:43
 msgid "Server URL"
 msgstr "Server-URL"
 
@@ -540,10 +560,6 @@ msgstr "API-Schlüssel (optional)"
 #: includes/admin/views/settings.php:306
 msgid "Contact e-mail (optional)"
 msgstr "Kontakt-E-Mail (optional)"
-
-#: includes/admin/views/settings.php:312
-msgid "Test the saved engine"
-msgstr "Gespeicherten Dienst testen"
 
 #: includes/admin/views/settings.php:316
 msgid "Fall back to the free engines when the selected one fails"
@@ -766,8 +782,8 @@ msgid "Every text of your site with its translation. Edit a translation and it w
 msgstr "Alle Texte Ihrer Website mit ihrer Übersetzung. Bearbeitete Übersetzungen werden nie automatisch überschrieben. Tipp: Öffnen Sie eine Seite und wählen Sie in der Werkzeugleiste «Übersetzer → Übersetzungen dieser Seite bearbeiten», um visuell zu bearbeiten."
 
 #: includes/admin/views/strings.php:54
-#: includes/admin/views/tools.php:195
-#: includes/admin/views/tools.php:234
+#: includes/admin/views/tools.php:207
+#: includes/admin/views/tools.php:246
 msgid "All languages"
 msgstr "Alle Sprachen"
 
@@ -821,7 +837,7 @@ msgid "Not translated yet"
 msgstr "Noch nicht übersetzt"
 
 #: includes/admin/views/strings.php:114
-#: includes/class-frontend.php:385
+#: includes/class-frontend.php:389
 msgid "Save"
 msgstr "Speichern"
 
@@ -834,7 +850,7 @@ msgid "Translate again"
 msgstr "Neu übersetzen"
 
 #: includes/admin/views/strings.php:116
-#: includes/admin/views/tools.php:244
+#: includes/admin/views/tools.php:256
 msgid "Delete"
 msgstr "Löschen"
 
@@ -913,177 +929,184 @@ msgstr "Dabei wird der Google Übersetzer verwendet, nicht %1$s. Die Texte werde
 msgid "Engine status"
 msgstr "Status der Dienste"
 
+#. translators: 1: engine name, 2: missing settings, e.g. "API key"
+#: includes/admin/views/tools.php:114
+#, php-format
+msgid "%1$s is not set up yet (%2$s missing)."
+msgstr "%1$s ist noch nicht eingerichtet (%2$s fehlt)."
+
+#. translators: %s: engine name
+#: includes/admin/views/tools.php:116
+#, php-format
+msgid "%s is not set up yet."
+msgstr "%s ist noch nicht eingerichtet."
+
+#. translators: 1: engine name, 2: duration, e.g. "3 hours", 3: error message
+#: includes/admin/views/tools.php:124
+#, php-format
+msgid "%1$s has been failing for %2$s: %3$s"
+msgstr "%1$s schlägt seit %2$s fehl: %3$s"
+
+#. translators: %s: engine name
+#: includes/admin/views/tools.php:133
+#, php-format
+msgid "%s: no problems recorded."
+msgstr "%s: keine Probleme festgestellt."
+
+#. translators: %s: engine name
+#: includes/admin/views/tools.php:135
+#, php-format
+msgid "%s answers again."
+msgstr "%s antwortet wieder."
+
 #. translators: %s: human time difference
-#: includes/admin/views/tools.php:115
+#: includes/admin/views/tools.php:147
 #, php-format
 msgid "paused for %s:"
 msgstr "pausiert für %s:"
 
-#: includes/admin/views/tools.php:121
+#: includes/admin/views/tools.php:153
 msgid "Resume now"
 msgstr "Jetzt fortsetzen"
 
-#. translators: 1: engine name, 2: missing settings
-#: includes/admin/views/tools.php:126
+#. translators: 1: number of texts, 2: engine name, 3: selected engine
+#: includes/admin/views/tools.php:161
 #, php-format
-msgid "%1$s is not set up yet: %2$s missing."
-msgstr "%1$s ist noch nicht eingerichtet: %2$s fehlt."
-
-#. translators: 1: engine name, 2: missing settings
-#: includes/admin/views/tools.php:126
-msgid "settings"
-msgstr "Einstellungen"
-
-#. translators: 1: engine name, 2: time ago, 3: error message
-#: includes/admin/views/tools.php:133
-#, php-format
-msgid "%1$s is failing (since %2$s): %3$s"
-msgstr "%1$s schlägt fehl (seit %2$s): %3$s"
-
-#. translators: %s: engine name
-#: includes/admin/views/tools.php:140
-#, php-format
-msgid "%s works."
-msgstr "%s funktioniert."
-
-#. translators: 1: number of texts, 2: engine names, 3: selected engine
-#: includes/admin/views/tools.php:150
-#, php-format
-msgid "%1$s text on your site comes from %2$s instead of %3$s."
-msgid_plural "%1$s texts on your site come from %2$s instead of %3$s."
-msgstr[0] "%1$s Text Ihrer Website stammt von %2$s statt von %3$s."
-msgstr[1] "%1$s Texte Ihrer Website stammen von %2$s statt von %3$s."
+msgid "%1$s text on your site currently comes from %2$s and is redone with %3$s in the background."
+msgid_plural "%1$s texts on your site currently come from %2$s and are redone with %3$s in the background."
+msgstr[0] "%1$s Text Ihrer Website stammt derzeit von %2$s und wird im Hintergrund mit %3$s neu übersetzt."
+msgstr[1] "%1$s Texte Ihrer Website stammen derzeit von %2$s und werden im Hintergrund mit %3$s neu übersetzt."
 
 #. translators: %s: number of texts
-#: includes/admin/views/tools.php:160
+#: includes/admin/views/tools.php:171
 #, php-format
-msgid "%s of them could not be re-translated yet; they are retried once a day, or use \"Re-translate them now\" below."
-msgid_plural "%s of them could not be re-translated yet; they are retried once a day, or use \"Re-translate them now\" below."
-msgstr[0] "%s davon konnte noch nicht neu übersetzt werden; er wird einmal täglich erneut versucht, oder nutzen Sie unten «Jetzt neu übersetzen»."
-msgstr[1] "%s davon konnten noch nicht neu übersetzt werden; sie werden einmal täglich erneut versucht, oder nutzen Sie unten «Jetzt neu übersetzen»."
+msgid "%s of them failed several times; it is retried once a day."
+msgid_plural "%s of them failed several times; they are retried once a day."
+msgstr[0] "%s davon ist mehrmals fehlgeschlagen; er wird einmal täglich erneut versucht."
+msgstr[1] "%s davon sind mehrmals fehlgeschlagen; sie werden einmal täglich erneut versucht."
 
 #. translators: 1: engine name, 2: time ago, 3: message
-#: includes/admin/views/tools.php:172
+#: includes/admin/views/tools.php:184
 #, php-format
 msgid "Last error (%1$s, %2$s ago): %3$s"
 msgstr "Letzter Fehler (%1$s, vor %2$s): %3$s"
 
-#: includes/admin/views/tools.php:178
+#: includes/admin/views/tools.php:190
 msgid "WordPress language packs"
 msgstr "WordPress-Sprachpakete"
 
-#: includes/admin/views/tools.php:179
+#: includes/admin/views/tools.php:191
 msgid "Installs the official WordPress translations for your languages, so dates and texts from WordPress itself are translated natively."
 msgstr "Installiert die offiziellen WordPress-Übersetzungen für Ihre Sprachen, damit Datumsangaben und Texte von WordPress selbst korrekt übersetzt sind."
 
-#: includes/admin/views/tools.php:183
+#: includes/admin/views/tools.php:195
 msgid "Install missing language packs"
 msgstr "Fehlende Sprachpakete installieren"
 
-#: includes/admin/views/tools.php:190
+#: includes/admin/views/tools.php:202
 msgid "Export & import"
 msgstr "Export & Import"
 
-#: includes/admin/views/tools.php:191
+#: includes/admin/views/tools.php:203
 msgid "Back up your translations, move them to a staging or live site, or let a translator review them."
 msgstr "Sichern Sie Ihre Übersetzungen, übertragen Sie sie auf eine Staging- oder Live-Website oder lassen Sie sie von einer Übersetzerin prüfen."
 
-#: includes/admin/views/tools.php:200
+#: includes/admin/views/tools.php:212
 msgid "Download JSON"
 msgstr "JSON herunterladen"
 
-#: includes/admin/views/tools.php:204
+#: includes/admin/views/tools.php:216
 msgid "Import"
 msgstr "Importieren"
 
-#: includes/admin/views/tools.php:211
+#: includes/admin/views/tools.php:223
 msgid "Re-translate with the current engine"
 msgstr "Mit dem aktuellen Dienst neu übersetzen"
 
-#: includes/admin/views/tools.php:212
+#: includes/admin/views/tools.php:224
 msgid "Translations are stored and reused. After switching to a better engine, redo the automatic translations made by other engines. Visitors keep seeing the current texts until the new ones are ready; manual edits and imports are never touched."
 msgstr "Übersetzungen werden gespeichert und wiederverwendet. Nach dem Wechsel zu einem besseren Dienst können Sie die automatischen Übersetzungen anderer Dienste neu erstellen lassen. Besucher sehen die aktuellen Texte, bis die neuen bereit sind; manuelle Bearbeitungen und Importe bleiben unberührt."
 
 #. translators: 1: number of texts, 2: engine name
-#: includes/admin/views/tools.php:217
+#: includes/admin/views/tools.php:229
 #, php-format
 msgid "%1$s text made by another engine than %2$s"
 msgid_plural "%1$s texts made by other engines than %2$s"
 msgstr[0] "%1$s Text von einem anderen Dienst als %2$s"
 msgstr[1] "%1$s Texte von anderen Diensten als %2$s"
 
-#: includes/admin/views/tools.php:221
+#: includes/admin/views/tools.php:233
 msgid "Re-translate them now"
 msgstr "Jetzt neu übersetzen"
 
-#: includes/admin/views/tools.php:223
+#: includes/admin/views/tools.php:235
 msgid "Set up the selected engine (API key) under Languages & Settings first."
 msgstr "Richten Sie zuerst den gewählten Dienst (API-Schlüssel) unter Sprachen & Einstellungen ein."
 
-#: includes/admin/views/tools.php:229
+#: includes/admin/views/tools.php:241
 msgid "Delete translations"
 msgstr "Übersetzungen löschen"
 
-#: includes/admin/views/tools.php:230
+#: includes/admin/views/tools.php:242
 msgid "For example after switching to a better engine: delete the automatic translations and they are created again with the new engine. Edited translations are kept unless you choose \"everything\"."
 msgstr "Zum Beispiel nach dem Wechsel zu einem besseren Dienst: Löschen Sie die automatischen Übersetzungen, dann werden sie mit dem neuen Dienst neu erstellt. Bearbeitete Übersetzungen bleiben erhalten, ausser Sie wählen «alles»."
 
-#: includes/admin/views/tools.php:239
+#: includes/admin/views/tools.php:251
 msgid "What to delete"
 msgstr "Was gelöscht wird"
 
-#: includes/admin/views/tools.php:240
+#: includes/admin/views/tools.php:252
 msgid "Automatic translations only"
 msgstr "Nur automatische Übersetzungen"
 
-#: includes/admin/views/tools.php:241
+#: includes/admin/views/tools.php:253
 msgid "Waiting texts only"
 msgstr "Nur wartende Texte"
 
-#: includes/admin/views/tools.php:242
+#: includes/admin/views/tools.php:254
 msgid "Everything, including edited"
 msgstr "Alles, auch bearbeitete"
 
-#: includes/class-frontend.php:383
+#: includes/class-frontend.php:387
 msgid "Translate this page"
 msgstr "Diese Seite übersetzen"
 
-#: includes/class-frontend.php:384
+#: includes/class-frontend.php:388
 msgid "Search strings…"
 msgstr "Texte suchen …"
 
-#: includes/class-frontend.php:387
+#: includes/class-frontend.php:391
 msgid "Could not save"
 msgstr "Speichern fehlgeschlagen"
 
-#: includes/class-frontend.php:388
+#: includes/class-frontend.php:392
 msgid "Pick text on the page"
 msgstr "Text auf der Seite wählen"
 
-#: includes/class-frontend.php:389
+#: includes/class-frontend.php:393
 msgid "Close editor"
 msgstr "Editor schliessen"
 
-#: includes/class-frontend.php:390
+#: includes/class-frontend.php:394
 msgid "not translated yet"
 msgstr "noch nicht übersetzt"
 
-#: includes/class-frontend.php:392
+#: includes/class-frontend.php:396
 msgid "Keep tags like <x1>…</x1> around the matching words."
 msgstr "Tags wie <x1>…</x1> um die passenden Wörter herum behalten."
 
 #. translators: %d: number of strings
-#: includes/class-frontend.php:394
+#: includes/class-frontend.php:398
 #, php-format
 msgid "%d strings on this page"
 msgstr "%d Texte auf dieser Seite"
 
-#: includes/class-frontend.php:441
+#: includes/class-frontend.php:445
 msgid "Edit translations of this page"
 msgstr "Übersetzungen dieser Seite bearbeiten"
 
 #. translators: %s: language name
-#: includes/class-frontend.php:452
+#: includes/class-frontend.php:456
 #, php-format
 msgid "View in %s"
 msgstr "Auf %s ansehen"
@@ -1104,7 +1127,7 @@ msgstr "Der gewählte Dienst ist noch nicht eingerichtet."
 msgid "Translation failed."
 msgstr "Übersetzung fehlgeschlagen."
 
-#: includes/class-rest.php:517
+#: includes/class-rest.php:522
 msgid "Browser translation uses Google Translate, and the free fallback engines are switched off."
 msgstr "Die Browser-Übersetzung verwendet den Google Übersetzer, und das Ausweichen auf die kostenlosen Dienste ist ausgeschaltet."
 
@@ -1114,21 +1137,21 @@ msgstr "Die Browser-Übersetzung verwendet den Google Übersetzer, und das Auswe
 msgid "Language: %s. Choose another language"
 msgstr "Sprache: %s. Andere Sprache wählen"
 
-#: includes/class-translator.php:693
+#: includes/class-translator.php:787
 msgid "Unknown engine."
 msgstr "Unbekannter Dienst."
 
 #. translators: %s: list of missing settings, e.g. "API key, Model"
-#: includes/class-translator.php:699
+#: includes/class-translator.php:793
 #, php-format
 msgid "This engine is not configured yet: %s missing. Enter it and save."
 msgstr "Dieser Dienst ist noch nicht eingerichtet: %s fehlt. Tragen Sie es ein und speichern Sie."
 
-#: includes/class-translator.php:701
+#: includes/class-translator.php:795
 msgid "This engine is not configured yet (API key or URL missing)."
 msgstr "Dieser Dienst ist noch nicht eingerichtet (API-Schlüssel oder URL fehlt)."
 
-#: includes/class-translator.php:738
+#: includes/class-translator.php:850
 msgid "No answer from the engine."
 msgstr "Keine Antwort vom Dienst."
 
@@ -1335,29 +1358,38 @@ msgid "Language switcher: add languages under Translator → Languages."
 msgstr "Sprachumschalter: Fügen Sie Sprachen unter Übersetzer → Sprachen hinzu."
 
 #. translators: %s: engine
-#: includes/engines/class-ai-engine.php:200
+#: includes/engines/class-ai-engine.php:201
+#: includes/engines/class-engine-exception.php:143
 #, php-format
 msgid "%s returned an incomplete answer."
 msgstr "%s hat eine unvollständige Antwort geliefert."
+
+#. translators: %s: engine
+#: includes/engines/class-ai-engine.php:205
+#: includes/engines/class-engine-exception.php:146
+#, php-format
+msgid "%s returned the texts untranslated."
+msgstr "%s hat die Texte unübersetzt zurückgegeben."
 
 #: includes/engines/class-anthropic.php:46
 msgid "Claude AI (Anthropic)"
 msgstr "Claude AI (Anthropic)"
 
-#: includes/engines/class-anthropic.php:124
+#: includes/engines/class-anthropic.php:133
 msgid "Claude is temporarily overloaded."
 msgstr "Claude ist vorübergehend überlastet."
 
-#: includes/engines/class-anthropic.php:131
+#: includes/engines/class-anthropic.php:140
 msgid "Claude declined to translate this batch."
 msgstr "Claude hat die Übersetzung dieses Pakets abgelehnt."
 
-#: includes/engines/class-anthropic.php:134
+#: includes/engines/class-anthropic.php:143
 msgid "Claude answer was cut off (batch too large)."
 msgstr "Die Antwort von Claude wurde abgeschnitten (Paket zu gross)."
 
 #. translators: 1: engine name, 2: HTTP status, 3: error message
-#: includes/engines/class-base-engine.php:507
+#: includes/engines/class-base-engine.php:565
+#: includes/engines/class-engine-exception.php:131
 #, php-format
 msgid "%1$s returned HTTP %2$d: %3$s"
 msgstr "%1$s antwortete mit HTTP %2$d: %3$s"
@@ -1366,13 +1398,79 @@ msgstr "%1$s antwortete mit HTTP %2$d: %3$s"
 msgid "DeepL"
 msgstr "DeepL"
 
-#: includes/engines/class-google.php:35
-msgid "Google Translate (free, no key)"
-msgstr "Google Übersetzer (kostenlos, ohne Schlüssel)"
+#. translators: %s: error message from the service
+#: includes/engines/class-engine-exception.php:134
+#: includes/engines/class-openai.php:295
+#, php-format
+msgid "The API account has no credit left or reached its spending limit (%s). A ChatGPT subscription does not include API usage: add credit or raise the limit in the billing settings of your API account, then click \"Test the saved engine\"."
+msgstr "Das API-Konto hat kein Guthaben mehr oder sein Ausgabenlimit erreicht (%s). Ein ChatGPT-Abo enthält keine API-Nutzung: Laden Sie Guthaben auf oder erhöhen Sie das Limit in den Abrechnungseinstellungen Ihres API-Kontos und klicken Sie dann auf «Gespeicherten Dienst testen»."
 
+#. translators: 1: engine name, 2: error message, e.g. "cURL error 7: Failed to connect"
+#: includes/engines/class-engine-exception.php:137
+#, php-format
+msgid "%1$s could not be reached: %2$s"
+msgstr "%1$s war nicht erreichbar: %2$s"
+
+#. translators: %s: engine name
+#: includes/engines/class-engine-exception.php:140
+#: includes/engines/class-openai.php:243
+#, php-format
+msgid "%s did not return a chat completion. Check the API base URL."
+msgstr "%s hat keine gültige Antwort geliefert. Prüfen Sie die API-Basis-URL."
+
+#. translators: 1: engine name, 2: reason given by the model
+#: includes/engines/class-engine-exception.php:149
+#: includes/engines/class-openai.php:251
+#, php-format
+msgid "%1$s declined to translate this batch: %2$s"
+msgstr "%1$s hat die Übersetzung dieses Pakets abgelehnt: %2$s"
+
+#. translators: %s: engine name
+#: includes/engines/class-engine-exception.php:149
+#, php-format
+msgid "%s declined to translate this batch."
+msgstr "%s hat die Übersetzung dieses Pakets abgelehnt."
+
+#. translators: %s: engine name
+#: includes/engines/class-engine-exception.php:152
+#: includes/engines/class-openai.php:255
+#, php-format
+msgid "%s answer was cut off (batch too large)."
+msgstr "Die Antwort von %s wurde abgeschnitten (Paket zu gross)."
+
+#. translators: %s: engine name
+#: includes/engines/class-engine-exception.php:155
+#: includes/engines/class-openai.php:259
+#, php-format
+msgid "%s blocked this batch with its content filter."
+msgstr "%s hat dieses Paket mit seinem Inhaltsfilter blockiert."
+
+#. translators: %s: engine name
+#: includes/engines/class-engine-exception.php:158
+#, php-format
+msgid "%s is temporarily overloaded."
+msgstr "%s ist vorübergehend überlastet."
+
+#: includes/engines/class-engine-exception.php:160
 #: includes/engines/class-google.php:89
 msgid "Google temporarily rate-limited this server. Translations continue in the background, or use \"Translate with my browser\" under Tools."
 msgstr "Google hat diesen Server vorübergehend gebremst. Die Übersetzung läuft im Hintergrund weiter – oder nutzen Sie «Mit meinem Browser übersetzen» unter Werkzeuge."
+
+#. translators: %s: engine name
+#: includes/engines/class-engine-exception.php:163
+#, php-format
+msgid "Unexpected response from %s."
+msgstr "Unerwartete Antwort von %s."
+
+#. translators: %s: engine name
+#: includes/engines/class-engine-exception.php:166
+#, php-format
+msgid "%s daily quota reached."
+msgstr "Tageskontingent von %s erreicht."
+
+#: includes/engines/class-google.php:35
+msgid "Google Translate (free, no key)"
+msgstr "Google Übersetzer (kostenlos, ohne Schlüssel)"
 
 #: includes/engines/class-google.php:97
 msgid "Unexpected response from Google Translate."
@@ -1393,27 +1491,3 @@ msgstr "Tageskontingent von MyMemory erreicht."
 #: includes/engines/class-openai.php:53
 msgid "OpenAI-compatible API"
 msgstr "OpenAI-kompatible API"
-
-#. translators: 1: engine name, 2: reason given by the model
-#: includes/engines/class-openai.php:244
-#, php-format
-msgid "%1$s declined to translate this batch: %2$s"
-msgstr "%1$s hat die Übersetzung dieses Pakets abgelehnt: %2$s"
-
-#. translators: %s: engine name
-#: includes/engines/class-openai.php:248
-#, php-format
-msgid "%s answer was cut off (batch too large)."
-msgstr "Die Antwort von %s wurde abgeschnitten (Paket zu gross)."
-
-#. translators: %s: engine name
-#: includes/engines/class-openai.php:252
-#, php-format
-msgid "%s blocked this batch with its content filter."
-msgstr "%s hat dieses Paket mit seinem Inhaltsfilter blockiert."
-
-#. translators: %s: error message from the service
-#: includes/engines/class-openai.php:288
-#, php-format
-msgid "The API account has no credit left or reached its spending limit (%s). A ChatGPT subscription does not include API usage: add credit or raise the limit in the billing settings of your API account, then click \"Test the saved engine\"."
-msgstr "Das API-Konto hat kein Guthaben mehr oder sein Ausgabenlimit erreicht (%s). Ein ChatGPT-Abo enthält keine API-Nutzung: Laden Sie Guthaben auf oder erhöhen Sie das Limit in den Abrechnungseinstellungen Ihres API-Kontos und klicken Sie dann auf «Gespeicherten Dienst testen»."

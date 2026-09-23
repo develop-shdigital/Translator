@@ -182,7 +182,7 @@ abstract class Base_Engine implements Engine {
 					}
 					$results[ $key ] = $this->parse_response( array_values( $group[ $key ] ), $response['status'], $response['body'], $response['headers'] );
 				} catch ( Engine_Exception $e ) {
-					self::log( $this->id(), $e->getMessage() );
+					self::log( $this->id(), $e->getMessage(), $e->record() );
 					$this->failures[ $key ] = $e;
 					if ( $e->pause > 0 ) {
 						$this->error = $e;
@@ -194,10 +194,23 @@ abstract class Base_Engine implements Engine {
 				break;
 			}
 		}
-		if ( $results ) {
-			self::healthy( $this->id() );
-		}
 		return $results;
+	}
+
+	/**
+	 * Exception for a request that got no HTTP answer.
+	 *
+	 * Connection, DNS and TLS problems are the service's (or the network's) fault
+	 * and do not use up the texts' attempts. A timeout does: a batch that is
+	 * always too slow must not be sent again forever.
+	 *
+	 * @param string $message Transport error.
+	 * @return Engine_Exception
+	 */
+	protected static function transport_error( $message ) {
+		$message = (string) $message;
+		$timeout = (bool) preg_match( '/cURL error 28|timed out|timeout/i', $message );
+		return ( new Engine_Exception( $message, 0, 0, Engine_Exception::SCOPE_ENGINE, $timeout ) )->kind( 'network', $message );
 	}
 
 	/**
@@ -229,7 +242,7 @@ abstract class Base_Engine implements Engine {
 				)
 			);
 			if ( is_wp_error( $response ) ) {
-				$out[ $key ] = new Engine_Exception( $response->get_error_message(), 0, 0, Engine_Exception::SCOPE_ENGINE, false );
+				$out[ $key ] = self::transport_error( $response->get_error_message() );
 				continue;
 			}
 			$headers = array();
@@ -312,7 +325,7 @@ abstract class Base_Engine implements Engine {
 			);
 		} catch ( \Exception $e ) {
 			foreach ( $requests as $key => $request ) {
-				$out[ $key ] = new Engine_Exception( $e->getMessage(), 0, 0, Engine_Exception::SCOPE_ENGINE, false );
+				$out[ $key ] = self::transport_error( $e->getMessage() );
 			}
 			return $out;
 		}
@@ -320,7 +333,7 @@ abstract class Base_Engine implements Engine {
 		foreach ( $requests as $key => $request ) {
 			$response = isset( $responses[ $key ] ) ? $responses[ $key ] : null;
 			if ( ! is_object( $response ) || $response instanceof \Exception || ! isset( $response->status_code ) ) {
-				$out[ $key ] = new Engine_Exception( $response instanceof \Exception ? $response->getMessage() : 'Request failed', 0, 0, Engine_Exception::SCOPE_ENGINE, false );
+				$out[ $key ] = self::transport_error( $response instanceof \Exception ? $response->getMessage() : 'Request failed' );
 				continue;
 			}
 			$headers = array();
@@ -378,35 +391,54 @@ abstract class Base_Engine implements Engine {
 	 * Remember the last engine error for the admin screen.
 	 *
 	 * @param string $engine  Engine id.
-	 * @param string $message Message.
+	 * @param string $message Message (in the current language).
+	 * @param array  $record  Engine_Exception::record(), to describe it in the admin's language later.
 	 */
-	public static function log( $engine, $message ) {
+	public static function log( $engine, $message, array $record = array() ) {
 		$message = wp_strip_all_tags( (string) $message );
+		$last    = get_option( 'shdt_last_error' );
+		// The same error again within a minute: nothing new to record.
+		if ( is_array( $last ) && isset( $last['engine'], $last['message'], $last['time'] ) && $last['engine'] === $engine && $last['message'] === $message && (int) $last['time'] > time() - MINUTE_IN_SECONDS ) {
+			return;
+		}
 		update_option(
 			'shdt_last_error',
-			array(
-				'engine'  => $engine,
-				'message' => $message,
-				'time'    => time(),
+			array_merge(
+				$record,
+				array(
+					'engine'  => $engine,
+					'message' => $message,
+					'time'    => time(),
+				)
 			),
 			false
 		);
+	}
 
-		// Per engine: the latest failure, and since when it has not worked.
+	/**
+	 * Record that an engine failed as a whole (nothing translated in a call, or
+	 * a problem of the service itself).
+	 *
+	 * @param string $engine Engine id.
+	 * @param array  $record Engine_Exception::record().
+	 */
+	public static function record_failure( $engine, array $record ) {
 		$health = self::health();
-		$entry  = isset( $health[ $engine ] ) ? $health[ $engine ] : array(
-			'ok'    => 0,
-			'count' => 0,
-		);
+		$entry  = isset( $health[ $engine ] ) ? $health[ $engine ] : self::empty_health();
+		$fresh  = (int) $entry['ok'] >= (int) $entry['time'];
+		if ( ! $fresh && isset( $entry['message'] ) && (string) $record['message'] === $entry['message'] && (int) $entry['time'] > time() - MINUTE_IN_SECONDS ) {
+			return; // Same failure again within a minute.
+		}
+		$entry = array_merge( $entry, $record );
 
-		$entry['message'] = $message;
+		$entry['message'] = wp_strip_all_tags( (string) $record['message'] );
 		$entry['time']    = time();
 		$entry['count']   = (int) $entry['count'] + 1;
-		if ( empty( $entry['since'] ) || (int) $entry['ok'] >= (int) $entry['since'] ) {
+		if ( $fresh || empty( $entry['since'] ) ) {
 			$entry['since'] = time();
 		}
 		$health[ $engine ] = $entry;
-		update_option( 'shdt_engine_health', $health, true );
+		update_option( 'shdt_engine_health', $health, false );
 	}
 
 	/**
@@ -419,12 +451,45 @@ abstract class Base_Engine implements Engine {
 		if ( isset( $health[ $engine ] ) && (int) $health[ $engine ]['ok'] < (int) $health[ $engine ]['time'] ) {
 			$health[ $engine ]['ok']    = time();
 			$health[ $engine ]['count'] = 0;
-			update_option( 'shdt_engine_health', $health, true );
+			update_option( 'shdt_engine_health', $health, false );
 		}
 	}
 
 	/**
-	 * Failure records of all engines: id => { message, time, since, ok, count }.
+	 * Forget an engine's failures (its settings changed: the old error no longer applies).
+	 *
+	 * @param string|null $engine Engine id, null for all.
+	 */
+	public static function forget( $engine = null ) {
+		$health = self::health();
+		if ( null === $engine ) {
+			$health = array();
+		} else {
+			unset( $health[ $engine ] );
+		}
+		update_option( 'shdt_engine_health', $health, false );
+	}
+
+	/**
+	 * Defaults of a health entry.
+	 *
+	 * @return array
+	 */
+	private static function empty_health() {
+		return array(
+			'message' => '',
+			'kind'    => '',
+			'raw'     => '',
+			'status'  => 0,
+			'time'    => 0,
+			'since'   => 0,
+			'ok'      => 0,
+			'count'   => 0,
+		);
+	}
+
+	/**
+	 * Failure records of all engines: id => { message, kind, raw, status, time, since, ok, count }.
 	 *
 	 * @return array
 	 */
@@ -433,16 +498,7 @@ abstract class Base_Engine implements Engine {
 		$out    = array();
 		foreach ( is_array( $health ) ? $health : array() as $id => $entry ) {
 			if ( is_array( $entry ) ) {
-				$out[ $id ] = wp_parse_args(
-					$entry,
-					array(
-						'message' => '',
-						'time'    => 0,
-						'since'   => 0,
-						'ok'      => 0,
-						'count'   => 0,
-					)
-				);
+				$out[ $id ] = wp_parse_args( $entry, self::empty_health() );
 			}
 		}
 		return $out;
@@ -451,9 +507,9 @@ abstract class Base_Engine implements Engine {
 	/**
 	 * The current failure of an engine: its latest error while it has not answered since.
 	 *
-	 * @param string $engine Engine id.
+	 * @param string $engine  Engine id.
 	 * @param int    $max_age Ignore failures older than this (seconds).
-	 * @return array|null { message, time, since, count }
+	 * @return array|null Health entry.
 	 */
 	public static function failing( $engine, $max_age = WEEK_IN_SECONDS ) {
 		$health = self::health();
@@ -492,7 +548,9 @@ abstract class Base_Engine implements Engine {
 			$pause = 600;
 			$scope = Engine_Exception::SCOPE_LANGUAGE;
 		}
-		return new Engine_Exception( $this->error_message( $status, $message ), $pause, $status, $scope );
+		// A rejected language counts against its texts, so they stop being re-sent after a few tries.
+		$counts = Engine_Exception::SCOPE_LANGUAGE === $scope ? true : null;
+		return ( new Engine_Exception( $this->error_message( $status, $message ), $pause, $status, $scope, $counts ) )->kind( 'http', (string) $message );
 	}
 
 	/**

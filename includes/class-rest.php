@@ -375,8 +375,13 @@ class Rest {
 	 * @return \WP_REST_Response
 	 */
 	public function import( \WP_REST_Request $request ) {
-		$rows = $request->get_param( 'rows' );
-		return rest_ensure_response( array( 'imported' => is_array( $rows ) ? $this->plugin->store()->import( $rows ) : 0 ) );
+		$rows  = $request->get_param( 'rows' );
+		$count = is_array( $rows ) ? $this->plugin->store()->import( $rows ) : 0;
+		// Imported texts of other engines are redone like fallback translations.
+		if ( $count && $this->plugin->store()->count_pending() > 0 ) {
+			$this->plugin->translator()->schedule_upgrade();
+		}
+		return rest_ensure_response( array( 'imported' => $count ) );
 	}
 
 	/**
@@ -588,6 +593,7 @@ class Rest {
 	 */
 	public function resume() {
 		$this->plugin->translator()->resume_all();
+		\SHDT\Engines\Base_Engine::forget();
 		$this->plugin->translator()->recovered();
 		return rest_ensure_response( array( 'ok' => true ) );
 	}

@@ -249,6 +249,14 @@ class Admin {
 			return;
 		}
 
+		if ( get_transient( 'shdt_base_invalid' ) ) {
+			delete_transient( 'shdt_base_invalid' );
+			printf(
+				'<div class="notice notice-error"><p>%s</p></div>',
+				esc_html__( 'The API base URL was not saved: enter the full address including http:// or https://, e.g. http://localhost:11434/v1.', 'shd-translator' )
+			);
+		}
+
 		$dropped = get_transient( 'shdt_key_dropped' );
 		if ( is_array( $dropped ) && ! empty( $dropped['host'] ) ) {
 			delete_transient( 'shdt_key_dropped' );
@@ -278,7 +286,10 @@ class Admin {
 		$translator = $this->plugin->translator();
 		$engine     = $translator->engine( $status['id'] );
 		$count      = $engine && $engine->is_available() ? $this->plugin->store()->count_other_engine( Translator::equivalent_ids( $status['id'] ) ) : 0;
-		if ( $count > 0 && get_option( 'shdt_retranslate_dismissed' ) !== $status['id'] ) {
+		// "Keep" hides the offer for these texts; it comes back when more of them appear.
+		$dismissed = get_option( 'shdt_retranslate_dismissed' );
+		$hidden    = is_array( $dismissed ) && isset( $dismissed['engine'], $dismissed['count'] ) && $dismissed['engine'] === $status['id'] && $count <= (int) $dismissed['count'];
+		if ( $count > 0 && ! $hidden ) {
 			echo '<div class="notice notice-info shdt-switch-notice"><p><strong>';
 			echo esc_html(
 				sprintf(
@@ -359,10 +370,10 @@ class Admin {
 					$status['label'],
 					human_time_diff( (int) $status['failure']['time'], time() )
 				);
-				$reason = $status['failure']['message'];
+				$reason = \SHDT\Engines\Engine_Exception::describe( $status['failure'], $status['label'] );
 		}
 
-		$shown = $status['counts']['outdated'] + $status['counts']['stuck'] + $status['counts']['auto'];
+		$shown = $status['redone'];
 		if ( $status['fallback_on'] ) {
 			$what = $shown > 0
 				? sprintf(
@@ -382,16 +393,25 @@ class Admin {
 			$what = __( 'Until it works, new texts stay in the original language ("Fall back to the free engines" is off).', 'shd-translator' );
 		}
 
-		$fix = Engine_Status::MISSING === $status['state']
-			? __( 'Set it up', 'shd-translator' )
-			: __( 'Fix the cause, then click "Test the saved engine"', 'shd-translator' );
+		$link = admin_url( 'admin.php?page=' . self::SLUG . '#shdt-engine' );
+		if ( Engine_Status::MISSING === $status['state'] ) {
+			$fix = __( 'Set it up', 'shd-translator' );
+		} elseif ( Engine_Status::PAUSED === $status['state'] && null !== $status['pause']['lang'] ) {
+			// A language pause is lifted with "Resume now".
+			$fix  = __( 'Fix the cause, then click "Resume now" under Tools', 'shd-translator' );
+			$link = admin_url( 'admin.php?page=' . self::SLUG . '-tools' );
+		} elseif ( false !== strpos( $reason, __( 'Test the saved engine', 'shd-translator' ) ) ) {
+			$fix = __( 'Open the settings', 'shd-translator' );
+		} else {
+			$fix = __( 'Fix the cause, then click "Test the saved engine"', 'shd-translator' );
+		}
 
 		printf(
 			'<div class="notice notice-error shdt-engine-notice"><p><strong>%s</strong> %s</p><p>%s <a href="%s">%s</a></p></div>',
 			esc_html( $title ),
 			esc_html( $reason ),
 			esc_html( $what ),
-			esc_url( admin_url( 'admin.php?page=' . self::SLUG . '#shdt-engine' ) ),
+			esc_url( $link ),
 			esc_html( $fix )
 		);
 	}
@@ -406,7 +426,13 @@ class Admin {
 		check_admin_referer( 'shdt_save_settings' );
 
 		$settings = $this->plugin->settings();
+		$before   = $settings->all();
 		$clean    = $settings->sanitize( $_POST ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- unslashed and sanitised field by field.
+
+		// An address that is not a full http(s) URL is not replaced by a guess.
+		if ( isset( $_POST['openai_base'] ) && '' !== trim( sanitize_text_field( wp_unslash( $_POST['openai_base'] ) ) ) && '' === $clean['openai_base'] ) {
+			set_transient( 'shdt_base_invalid', 1, HOUR_IN_SECONDS );
+		}
 
 		// Keep stored API keys when the field is left untouched (they are shown masked),
 		// but never send a stored key to a different server than the one it was saved for.
@@ -437,9 +463,16 @@ class Admin {
 		} else {
 			delete_transient( 'shdt_invalid_selectors' );
 		}
-		// New settings: forget pauses and give failed texts another try with them.
+		// New settings: forget pauses and old errors, and give failed texts another try.
 		$translator = $this->plugin->translator();
 		$translator->resume_all();
+		\SHDT\Engines\Base_Engine::forget( $translator->primary_id() );
+		if ( $clean['engine'] !== $before['engine'] ) {
+			delete_option( 'shdt_retranslate_dismissed' );
+		}
+		if ( $clean['openai_base'] !== $before['openai_base'] || $clean['openai_model'] !== $before['openai_model'] ) {
+			delete_option( 'shdt_openai_format' ); // Another server or model: probe the answer format again.
+		}
 		$primary = $translator->engine( $translator->primary_id() );
 		if ( $primary && $primary->is_available() ) {
 			$translator->recovered();
@@ -482,7 +515,8 @@ class Admin {
 		if ( '' === $rest ) {
 			return (string) $stored; // Untouched mask.
 		}
-		$key = preg_replace( '/^Bearer\s+/i', '', trim( (string) $rest ) );
+		// Mask dots are never part of a key (typed before or inside the mask).
+		$key = preg_replace( '/^Bearer\s+/i', '', trim( (string) str_replace( "\u{2022}", '', (string) $rest ) ) );
 		return (string) preg_replace( '/\s+/u', '', (string) $key );
 	}
 
@@ -544,7 +578,15 @@ class Admin {
 			wp_die( esc_html__( 'Sorry, you are not allowed to do that.', 'shd-translator' ) );
 		}
 		check_admin_referer( 'shdt_keep_translations' );
-		update_option( 'shdt_retranslate_dismissed', $this->plugin->translator()->primary_id(), false );
+		$engine = $this->plugin->translator()->primary_id();
+		update_option(
+			'shdt_retranslate_dismissed',
+			array(
+				'engine' => $engine,
+				'count'  => $this->plugin->store()->count_other_engine( Translator::equivalent_ids( $engine ) ),
+			),
+			false
+		);
 		wp_safe_redirect( wp_get_referer() ? wp_get_referer() : admin_url( 'admin.php?page=' . self::SLUG ) );
 		exit;
 	}

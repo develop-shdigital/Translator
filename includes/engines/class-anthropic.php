@@ -54,6 +54,15 @@ class Anthropic extends AI_Engine {
 	}
 
 	/**
+	 * Settings that still have to be filled in.
+	 *
+	 * @return string[]
+	 */
+	public function missing() {
+		return $this->is_available() ? array() : array( __( 'API key', 'shd-translator' ) );
+	}
+
+	/**
 	 * Configured model.
 	 *
 	 * @return string
@@ -121,17 +130,20 @@ class Anthropic extends AI_Engine {
 		if ( 200 !== $status ) {
 			$message = isset( $data['error']['message'] ) ? $data['error']['message'] : substr( wp_strip_all_tags( $body ), 0, 200 );
 			if ( 529 === $status ) {
-				throw new Engine_Exception( __( 'Claude is temporarily overloaded.', 'shd-translator' ), 60, $status );
+				$error = new Engine_Exception( __( 'Claude is temporarily overloaded.', 'shd-translator' ), 60, $status );
+				throw $error->kind( 'overloaded' );
 			}
 			throw $this->http_error( $status, $message, $headers );
 		}
 
 		$stop = isset( $data['stop_reason'] ) ? $data['stop_reason'] : '';
 		if ( 'refusal' === $stop ) {
-			throw new Engine_Exception( __( 'Claude declined to translate this batch.', 'shd-translator' ), 0, 0, Engine_Exception::SCOPE_ENGINE, true, true );
+			$error = new Engine_Exception( __( 'Claude declined to translate this batch.', 'shd-translator' ), 0, 0, Engine_Exception::SCOPE_ENGINE, true, true );
+			throw $error->kind( 'refusal' );
 		}
 		if ( 'max_tokens' === $stop ) {
-			throw new Engine_Exception( __( 'Claude answer was cut off (batch too large).', 'shd-translator' ), 0, 0, Engine_Exception::SCOPE_ENGINE, true, true );
+			$error = new Engine_Exception( __( 'Claude answer was cut off (batch too large).', 'shd-translator' ), 0, 0, Engine_Exception::SCOPE_ENGINE, true, true );
+			throw $error->kind( 'length' );
 		}
 
 		$text = '';

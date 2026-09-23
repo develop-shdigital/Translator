@@ -202,9 +202,11 @@ class OpenAI extends AI_Engine {
 		$format = $this->format();
 		if ( 'json_schema' === $format ) {
 			$schema = $this->schema();
-
-			$schema['properties']['translations']['minItems'] = count( $texts );
-			$schema['properties']['translations']['maxItems'] = count( $texts );
+			// Fine-tuned models do not support item counts in the schema.
+			if ( 0 !== strpos( $this->model(), 'ft:' ) ) {
+				$schema['properties']['translations']['minItems'] = count( $texts );
+				$schema['properties']['translations']['maxItems'] = count( $texts );
+			}
 
 			$body['response_format'] = array(
 				'type'        => 'json_schema',
@@ -235,21 +237,30 @@ class OpenAI extends AI_Engine {
 			throw $this->api_error( $status, is_array( $data ) && isset( $data['error'] ) ? $data['error'] : null, (string) $body, $headers );
 		}
 
-		$choice  = isset( $data['choices'][0] ) && is_array( $data['choices'][0] ) ? $data['choices'][0] : array();
+		if ( ! isset( $data['choices'][0] ) || ! is_array( $data['choices'][0] ) ) {
+			// Not an API answer at all (e.g. a web page at a wrong base URL): every request would fail.
+			/* translators: %s: engine name */
+			$error = new Engine_Exception( sprintf( __( '%s did not return a chat completion. Check the API base URL.', 'shd-translator' ), $this->label() ), 600, $status, Engine_Exception::SCOPE_ENGINE, false );
+			throw $error->kind( 'no_completion' );
+		}
+		$choice  = $data['choices'][0];
 		$message = isset( $choice['message'] ) && is_array( $choice['message'] ) ? $choice['message'] : array();
 		$finish  = isset( $choice['finish_reason'] ) ? (string) $choice['finish_reason'] : '';
 
 		if ( ! empty( $message['refusal'] ) && is_string( $message['refusal'] ) ) {
 			/* translators: 1: engine name, 2: reason given by the model */
-			throw new Engine_Exception( sprintf( __( '%1$s declined to translate this batch: %2$s', 'shd-translator' ), $this->label(), $message['refusal'] ), 0, 0, Engine_Exception::SCOPE_ENGINE, true, true );
+			$error = new Engine_Exception( sprintf( __( '%1$s declined to translate this batch: %2$s', 'shd-translator' ), $this->label(), $message['refusal'] ), 0, 0, Engine_Exception::SCOPE_ENGINE, true, true );
+			throw $error->kind( 'refusal', $message['refusal'] );
 		}
 		if ( 'length' === $finish ) {
 			/* translators: %s: engine name */
-			throw new Engine_Exception( sprintf( __( '%s answer was cut off (batch too large).', 'shd-translator' ), $this->label() ), 0, 0, Engine_Exception::SCOPE_ENGINE, true, true );
+			$error = new Engine_Exception( sprintf( __( '%s answer was cut off (batch too large).', 'shd-translator' ), $this->label() ), 0, 0, Engine_Exception::SCOPE_ENGINE, true, true );
+			throw $error->kind( 'length' );
 		}
 		if ( 'content_filter' === $finish ) {
 			/* translators: %s: engine name */
-			throw new Engine_Exception( sprintf( __( '%s blocked this batch with its content filter.', 'shd-translator' ), $this->label() ), 0, 0, Engine_Exception::SCOPE_ENGINE, true, true );
+			$error = new Engine_Exception( sprintf( __( '%s blocked this batch with its content filter.', 'shd-translator' ), $this->label() ), 0, 0, Engine_Exception::SCOPE_ENGINE, true, true );
+			throw $error->kind( 'filter' );
 		}
 
 		$content = isset( $message['content'] ) && is_string( $message['content'] ) ? $message['content'] : '';
@@ -282,7 +293,7 @@ class OpenAI extends AI_Engine {
 
 		// No credit, spend limit or billing not set up: waiting does not help.
 		if ( 429 === $status && ( 'insufficient_quota' === $type || in_array( $code, self::BILLING_CODES, true ) ) ) {
-			return new Engine_Exception(
+			return ( new Engine_Exception(
 				sprintf(
 					/* translators: %s: error message from the service */
 					__( 'The API account has no credit left or reached its spending limit (%s). A ChatGPT subscription does not include API usage: add credit or raise the limit in the billing settings of your API account, then click "Test the saved engine".', 'shd-translator' ),
@@ -292,20 +303,22 @@ class OpenAI extends AI_Engine {
 				$status,
 				Engine_Exception::SCOPE_ENGINE,
 				false
-			);
+			) )->kind( 'billing', $message );
 		}
 
 		// The server does not support the requested answer format: use a simpler one.
 		if ( 400 === $status && 'none' !== $this->format() && ( 0 === strpos( $param, 'response_format' ) || preg_match( '/response_format|json_schema|json_object|structured output/i', $message ) ) ) {
 			$this->format_rejected = true;
-			return new Engine_Exception( $this->error_message( $status, $message ), 0, $status, Engine_Exception::SCOPE_ENGINE, false );
+			return ( new Engine_Exception( $this->error_message( $status, $message ), 0, $status, Engine_Exception::SCOPE_ENGINE, false ) )->kind( 'http', $message );
 		}
 
+		// One text too long or flagged: smaller batches isolate it. An answer that failed
+		// validation (json_validate_failed) is retried as it is.
 		if ( in_array( $code, self::BATCH_CODES, true ) ) {
-			return new Engine_Exception( $this->error_message( $status, $message ), 0, $status, Engine_Exception::SCOPE_ENGINE, true, 'context_length_exceeded' === $code || 'string_above_max_length' === $code );
+			return ( new Engine_Exception( $this->error_message( $status, $message ), 0, $status, Engine_Exception::SCOPE_ENGINE, true, 'json_validate_failed' !== $code ) )->kind( 'http', $message );
 		}
 		if ( in_array( $code, array( 'model_not_found', 'invalid_api_key', 'unsupported_country_region_territory' ), true ) ) {
-			return new Engine_Exception( $this->error_message( $status, $message ), 1800, $status, Engine_Exception::SCOPE_ENGINE, false );
+			return ( new Engine_Exception( $this->error_message( $status, $message ), 1800, $status, Engine_Exception::SCOPE_ENGINE, false ) )->kind( 'http', $message );
 		}
 
 		return $this->http_error( $status, $message, $headers );

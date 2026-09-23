@@ -67,6 +67,14 @@ class Translator {
 	private $attempted = array();
 
 	/**
+	 * Whether texts that the queue will redo soon were served in this request
+	 * (fallback translations of an engine that works): the page should not be cached.
+	 *
+	 * @var bool
+	 */
+	private $upgrade_pending = false;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Settings  $settings  Settings.
@@ -204,14 +212,18 @@ class Translator {
 	 * @param int         $seconds Duration.
 	 * @param string      $message Reason.
 	 * @param string|null $lang    Only this target language.
+	 * @param array       $record  Engine_Exception::record(), to describe it in the admin's language.
 	 */
-	public function pause( $id, $seconds, $message, $lang = null ) {
+	public function pause( $id, $seconds, $message, $lang = null, array $record = array() ) {
 		set_transient(
 			self::pause_key( $id, $lang ),
-			array(
-				'until'   => time() + $seconds,
-				'message' => $message,
-				'lang'    => $lang,
+			array_merge(
+				$record,
+				array(
+					'until'   => time() + $seconds,
+					'message' => $message,
+					'lang'    => $lang,
+				)
 			),
 			$seconds
 		);
@@ -233,12 +245,13 @@ class Translator {
 					continue;
 				}
 				$engine = $this->engine( $id );
+				$label  = $engine ? $engine->label() : $id;
 				$out[]  = array(
 					'engine'  => $id,
-					'label'   => $engine ? $engine->label() : $id,
+					'label'   => $label,
 					'lang'    => $lang,
 					'until'   => isset( $pause['until'] ) ? (int) $pause['until'] : 0,
-					'message' => isset( $pause['message'] ) ? (string) $pause['message'] : '',
+					'message' => Engines\Engine_Exception::describe( $pause, $label ),
 				);
 			}
 		}
@@ -296,11 +309,15 @@ class Translator {
 			}
 		}
 
-		$missing = array();
+		$missing  = array();
+		$outdated = false;
 		if ( $need ) {
 			$rows = $this->store->get_many( $lang, array_keys( $need ) );
 			foreach ( $need as $hash => $key ) {
 				if ( isset( $rows[ $hash ] ) && $rows[ $hash ]['status'] > Store::PENDING ) {
+					if ( Store::OUTDATED === $rows[ $hash ]['status'] && $rows[ $hash ]['attempts'] < Store::MAX_ATTEMPTS ) {
+						$outdated = true;
+					}
 					$value                         = (string) $rows[ $hash ]['translated'];
 					$value                         = '' === $value ? false : $value;
 					$out[ $key ]                   = $value;
@@ -311,6 +328,10 @@ class Translator {
 			}
 		}
 
+		if ( $outdated && ! $this->upgrade_pending && $this->upgrade_soon( $lang ) ) {
+			$this->upgrade_pending = true;
+		}
+
 		$deadline = microtime( true ) + (float) $context['budget'];
 		if ( $context['deadline'] > 0 ) {
 			$deadline = min( $deadline, (float) $context['deadline'] );
@@ -318,7 +339,7 @@ class Translator {
 		if ( $missing && $context['engine'] && $deadline - microtime( true ) >= 1 && $this->settings->on( 'auto_translate' ) ) {
 			$source  = $this->languages->get( $this->languages->default_code() );
 			$results = $this->machine_translate( array_keys( $missing ), $source, $target, $context, $deadline );
-			$this->save( $lang, $results, $context['url'] );
+			$this->save( $lang, $results, $context['url'], '', $context['isolate'] ? Store::VISITOR : '' );
 			foreach ( $results as $key => $value ) {
 				$out[ $key ]                   = $value;
 				$this->memory[ $lang ][ $key ] = $value;
@@ -328,8 +349,10 @@ class Translator {
 
 		if ( $missing && $context['queue'] ) {
 			$this->store->add_pending( $lang, array_keys( $missing ), $context['url'], $context['isolate'] ? Store::VISITOR : '' );
-			if ( $this->settings->on( 'auto_translate' ) ) {
-				shdt()->queue()->schedule();
+			// Plan a run, and bring it forward when an engine can translate them right now
+			// (a run planned for the end of the selected engine's pause is too late for them).
+			if ( $this->settings->on( 'auto_translate' ) && $this->chain( true, $lang ) ) {
+				shdt()->queue()->schedule( 10, (bool) $this->chain( false, $lang ) );
 			}
 		}
 
@@ -347,8 +370,9 @@ class Translator {
 	 * @param array  $results key => string|false.
 	 * @param string $url     Page URL.
 	 * @param string $engine  Engine id override (e.g. "browser").
+	 * @param string $origin  Store::VISITOR for text sent by browsers.
 	 */
-	public function save( $lang, array $results, $url = '', $engine = '' ) {
+	public function save( $lang, array $results, $url = '', $engine = '', $origin = '' ) {
 		$primary  = $this->primary_id();
 		$items    = array();
 		$outdated = false;
@@ -361,14 +385,17 @@ class Translator {
 				'engine'     => $by,
 				'url'        => $url,
 				'status'     => $other ? Store::OUTDATED : Store::AUTO,
+				'origin'     => $origin,
 			);
 			$outdated = $outdated || $other;
 		}
 		$this->store->save_many( $lang, $items );
 
 		if ( $outdated ) {
-			delete_transient( Store::FALLBACK_COUNTS );
 			$this->schedule_upgrade( $lang );
+			if ( $this->upgrade_soon( $lang ) ) {
+				$this->upgrade_pending = true;
+			}
 		}
 	}
 
@@ -384,8 +411,30 @@ class Translator {
 			return;
 		}
 		$pause = $this->paused( $primary->id(), $lang );
-		$delay = is_array( $pause ) && isset( $pause['until'] ) ? max( 60, (int) $pause['until'] - time() + 30 ) : 5 * MINUTE_IN_SECONDS;
+		$delay = is_array( $pause ) && isset( $pause['until'] ) ? min( HOUR_IN_SECONDS, max( 60, (int) $pause['until'] - time() + 30 ) ) : 5 * MINUTE_IN_SECONDS;
 		shdt()->queue()->schedule( $delay );
+	}
+
+	/**
+	 * Whether the selected engine can redo fallback translations in the next queue
+	 * runs: set up, not paused and not failing.
+	 *
+	 * @param string $lang Language.
+	 * @return bool
+	 */
+	private function upgrade_soon( $lang ) {
+		$primary = $this->engine( $this->primary_id() );
+		return $primary && $primary->is_available() && ! $this->paused( $primary->id(), $lang ) && ! Engines\Base_Engine::failing( $primary->id(), HOUR_IN_SECONDS );
+	}
+
+	/**
+	 * Whether this request served fallback translations that the selected engine
+	 * will redo soon (see $upgrade_pending).
+	 *
+	 * @return bool
+	 */
+	public function upgrade_pending() {
+		return $this->upgrade_pending;
 	}
 
 	/**
@@ -492,11 +541,46 @@ class Translator {
 			$error = $engine->error();
 			if ( $error && $error->pause > 0 ) {
 				$lang = Engines\Engine_Exception::SCOPE_LANGUAGE === $error->scope ? $target['code'] : null;
-				$this->pause( $engine->id(), $error->pause, $error->getMessage(), $lang );
+				$this->pause( $engine->id(), $error->pause, $error->getMessage(), $lang, $error->record() );
 			}
+			$this->note_health( $engine->id(), (bool) $answers, $error, $failures, $payload );
 		}
 
 		return $results;
+	}
+
+	/**
+	 * Keep the engine's health record up to date after one call.
+	 *
+	 * An engine is "failing" when a call got nothing translated at all, or hit a
+	 * problem of the service itself. A single text it refuses while other texts
+	 * work does not make the whole engine fail.
+	 *
+	 * @param string                        $id       Engine id.
+	 * @param bool                          $answered Whether anything came back.
+	 * @param Engines\Engine_Exception|null $error    Pausing error.
+	 * @param Engines\Engine_Exception[]    $failures Batch failures.
+	 * @param array                         $batches  Batches sent (index => texts).
+	 */
+	private function note_health( $id, $answered, $error, array $failures, array $batches ) {
+		if ( $answered ) {
+			Engines\Base_Engine::healthy( $id );
+			return;
+		}
+		$worst = $error;
+		foreach ( $failures as $index => $failure ) {
+			// One text refused, filtered or too long: that text's problem, not the engine's.
+			$single = isset( $batches[ $index ] ) && 1 === count( $batches[ $index ] ) && $failure->split;
+			if ( $single || in_array( $failure->kind, array( 'refusal', 'filter', 'length' ), true ) ) {
+				continue;
+			}
+			if ( ! $worst || ( $worst->counts && ! $failure->counts ) ) {
+				$worst = $failure;
+			}
+		}
+		if ( $worst ) {
+			Engines\Base_Engine::record_failure( $id, $worst->record() );
+		}
 	}
 
 	/**
@@ -578,7 +662,7 @@ class Translator {
 		$groups = array();
 		foreach ( $rows as $row ) {
 			$upgrade = isset( $row['status'] ) && Store::OUTDATED === (int) $row['status'];
-			$isolate = isset( $row['engine'] ) && Store::VISITOR === $row['engine'];
+			$isolate = ( isset( $row['origin'] ) && Store::VISITOR === $row['origin'] ) || ( isset( $row['engine'] ) && Store::VISITOR === $row['engine'] );
 			$groups[ $row['lang'] . '|' . ( $upgrade ? 1 : 0 ) . '|' . ( $isolate ? 1 : 0 ) ][ $row['original'] ] = (int) $row['id'];
 		}
 
@@ -598,8 +682,17 @@ class Translator {
 			$keys    = array_map( 'strval', array_keys( $originals ) );
 			$results = $this->machine_translate( $keys, $source, $target, array( 'isolate' => '1' === $isolate ), $deadline, '1' === $upgrade );
 			$tried   = $this->attempted();
-			$this->save( $lang, $results );
+			$this->save( $lang, $results, '', '', '1' === $isolate ? Store::VISITOR : '' );
 			$done += count( $results );
+			if ( $results ) {
+				/**
+				 * Translations were added or replaced in the background (e.g. to purge page caches).
+				 *
+				 * @param string   $lang Language.
+				 * @param string[] $keys Original texts.
+				 */
+				do_action( 'shdt_translations_updated', $lang, array_map( 'strval', array_keys( $results ) ) );
+			}
 			foreach ( $originals as $original => $id ) {
 				$original = (string) $original;
 				if ( ! array_key_exists( $original, $results ) && isset( $tried[ $original ] ) ) {
@@ -713,10 +806,27 @@ class Translator {
 			'Contact us',
 			'Opening hours',
 		);
-		$answers = $engine->translate_batches( array( $samples ), $source, $target, array(), microtime( true ) + 30 );
-		if ( isset( $answers[0] ) && count( array_filter( (array) $answers[0], 'strlen' ) ) === count( $samples ) ) {
+		// One batch like page texts; engines that take one text per request get one each.
+		$batches = $engine->max_batch() >= count( $samples ) ? array( $samples ) : array_map(
+			function ( $sample ) {
+				return array( $sample );
+			},
+			$samples
+		);
+		$answers = $engine->translate_batches( $batches, $source, $target, array(), microtime( true ) + 30 );
+		$texts   = array();
+		foreach ( array_keys( $batches ) as $index ) {
+			foreach ( array_keys( $batches[ $index ] ) as $position ) {
+				if ( isset( $answers[ $index ][ $position ] ) && '' !== (string) $answers[ $index ][ $position ] ) {
+					$texts[] = $answers[ $index ][ $position ];
+				}
+			}
+		}
+		if ( count( $texts ) === count( $samples ) ) {
 			delete_transient( self::pause_key( $id ) );
-			delete_transient( self::pause_key( $id, $target['code'] ) );
+			foreach ( array_keys( $this->languages->active() ) as $code ) {
+				delete_transient( self::pause_key( $id, $code ) );
+			}
 			Engines\Base_Engine::healthy( $id );
 			$last = get_option( 'shdt_last_error' );
 			if ( is_array( $last ) && isset( $last['engine'] ) && $last['engine'] === $id ) {
@@ -725,7 +835,7 @@ class Translator {
 			if ( $id === $this->primary_id() ) {
 				$this->recovered();
 			}
-			return array( true, implode( ' · ', (array) $answers[0] ) );
+			return array( true, implode( ' · ', $texts ) );
 		}
 		$error = $engine->error();
 		if ( ! $error && method_exists( $engine, 'failures' ) ) {
@@ -733,6 +843,7 @@ class Translator {
 			$error    = $failures ? reset( $failures ) : null;
 		}
 		if ( $error ) {
+			Engines\Base_Engine::record_failure( $id, $error->record() );
 			return array( false, $error->getMessage() );
 		}
 		$last = get_option( 'shdt_last_error' );

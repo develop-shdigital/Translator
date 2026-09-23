@@ -209,11 +209,14 @@ class Settings {
 			$out['anthropic_model'] = $defaults['anthropic_model'];
 		}
 
-		$out['openai_base']    = isset( $raw['openai_base'] ) ? untrailingslashit( esc_url_raw( trim( wp_unslash( $raw['openai_base'] ) ) ) ) : $defaults['openai_base'];
+		$base_raw           = isset( $raw['openai_base'] ) ? trim( (string) wp_unslash( $raw['openai_base'] ) ) : $defaults['openai_base'];
+		$out['openai_base'] = '' === $base_raw ? $defaults['openai_base'] : untrailingslashit( esc_url_raw( $base_raw, array( 'http', 'https' ) ) );
 		// A pasted endpoint ("…/v1/chat/completions") instead of the base URL.
 		$out['openai_base'] = untrailingslashit( (string) preg_replace( '~/(?:chat/)?completions/?$~i', '', $out['openai_base'] ) );
-		if ( '' === $out['openai_base'] ) {
-			$out['openai_base'] = $defaults['openai_base'];
+		// Anything that is not a full http(s) address ("localhost:11434/v1") stays empty,
+		// so the engine reports the address as missing instead of guessing a server.
+		if ( '' !== $out['openai_base'] && ! preg_match( '~^https?://[^/]~i', $out['openai_base'] ) ) {
+			$out['openai_base'] = '';
 		}
 		$out['libre_url']      = isset( $raw['libre_url'] ) ? untrailingslashit( esc_url_raw( trim( wp_unslash( $raw['libre_url'] ) ) ) ) : '';
 		$out['mymemory_email'] = isset( $raw['mymemory_email'] ) ? sanitize_email( wp_unslash( $raw['mymemory_email'] ) ) : '';

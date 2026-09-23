@@ -66,9 +66,9 @@ abstract class AI_Engine extends Base_Engine {
 			return $error;
 		}
 		if ( self::is_account_problem( $status, $message ) ) {
-			return new Engine_Exception( $error->getMessage(), 1800, $status );
+			return ( new Engine_Exception( $error->getMessage(), 1800, $status ) )->kind( 'http', (string) $message );
 		}
-		return new Engine_Exception( $error->getMessage(), 0, $status );
+		return ( new Engine_Exception( $error->getMessage(), 0, $status ) )->kind( 'http', (string) $message );
 	}
 
 	/**
@@ -87,7 +87,7 @@ abstract class AI_Engine extends Base_Engine {
 			return true;
 		}
 		// "model not found / no access / retired", but not "this model's maximum context length".
-		return (bool) preg_match( '/\bmodel\b.{0,80}\b(not found|does not exist|not exist|no access|not have access|not available|not supported|deprecated|retired|decommissioned|invalid)\b|\b(invalid|unknown|unsupported)\s+model\b/i', $message );
+		return (bool) preg_match( '/\bmodel\b.{0,80}\b(not found|does not exist|not exist|no access|not have access|not available|not supported|deprecated|retired|decommissioned|invalid)\b|\b(invalid|unknown|unsupported|not a valid)\s+model\b/i', $message );
 	}
 
 	/**
@@ -195,9 +195,16 @@ abstract class AI_Engine extends Base_Engine {
 	 * @throws Engine_Exception When unusable (smaller batches may work).
 	 */
 	protected function parse_translations( $content, array $texts ) {
-		$list = self::extract_translations( (string) $content );
+		$found = self::find_translations( (string) $content );
+		$list  = $found ? $found['list'] : null;
 		if ( null === $list || count( $list ) !== count( $texts ) ) {
-			throw new Engine_Exception( sprintf( /* translators: %s: engine */ __( '%s returned an incomplete answer.', 'shd-translator' ), $this->label() ), 0, 0, Engine_Exception::SCOPE_ENGINE, true, true );
+			$error = new Engine_Exception( sprintf( /* translators: %s: engine */ __( '%s returned an incomplete answer.', 'shd-translator' ), $this->label() ), 0, 0, Engine_Exception::SCOPE_ENGINE, true, true );
+			throw $error->kind( 'incomplete' );
+		}
+		// The model repeated the request instead of answering it.
+		if ( 'translations' !== $found['key'] && array_values( $texts ) === $list ) {
+			$error = new Engine_Exception( sprintf( /* translators: %s: engine */ __( '%s returned the texts untranslated.', 'shd-translator' ), $this->label() ), 0 );
+			throw $error->kind( 'echo' );
 		}
 		$out = array();
 		foreach ( $list as $i => $value ) {
@@ -209,54 +216,91 @@ abstract class AI_Engine extends Base_Engine {
 	}
 
 	/**
-	 * The list of translations in a model answer, tolerating the usual variations:
-	 * code fences, text around the JSON, {"result": {...}}, an object keyed by
-	 * number instead of a list, and items like {"text": "..."}.
+	 * The list of translations in a model answer.
 	 *
 	 * @param string $content Model text.
 	 * @return array|null Values in order (non-strings as null), null when there is no list.
 	 */
 	public static function extract_translations( $content ) {
+		$found = self::find_translations( $content );
+		return $found ? $found['list'] : null;
+	}
+
+	/**
+	 * Find the translations in a model answer, tolerating the usual variations:
+	 * code fences, text or quoted input around the JSON, {"result": {...}}, an
+	 * object keyed by number instead of a list, items like {"translation": "..."}.
+	 * An object with a "translations" key wins (the last one, answers come after
+	 * quoted input); a bare list only counts when it is the whole answer.
+	 *
+	 * @param string $content Model text.
+	 * @return array|null { list, key } or null.
+	 */
+	private static function find_translations( $content ) {
 		$content = trim( (string) $content );
 		if ( preg_match( '/^```[a-zA-Z]*\s*(.*?)\s*```$/s', $content, $m ) ) {
-			$content = $m[1];
-		}
-		$data = json_decode( $content, true );
-		if ( ! is_array( $data ) ) {
-			$json = self::first_json( $content );
-			$data = null === $json ? null : json_decode( $json, true );
-		}
-		if ( ! is_array( $data ) ) {
-			return null;
+			$content = trim( $m[1] );
 		}
 
-		$list = null;
-		if ( array_values( $data ) === $data ) {
-			$list = $data; // A bare list.
-		} else {
-			foreach ( array( 'translations', 'result', 'strings' ) as $name ) {
-				if ( isset( $data[ $name ] ) && is_array( $data[ $name ] ) ) {
-					$list = $data[ $name ];
-					if ( 'result' === $name && isset( $list['translations'] ) && is_array( $list['translations'] ) ) {
-						$list = $list['translations'];
-					}
-					break;
+		$whole      = json_decode( $content, true );
+		$candidates = is_array( $whole ) ? array( $whole ) : self::json_values( $content );
+
+		$fallback = null;
+		foreach ( array_reverse( $candidates ) as $data ) {
+			if ( array_values( $data ) === $data ) {
+				if ( is_array( $whole ) && null === $fallback ) {
+					$fallback = array( $data, 'list' ); // The whole answer is a list.
 				}
+				continue;
 			}
-		}
-		if ( null === $list ) {
-			return null;
-		}
-
-		$out = array();
-		foreach ( $list as $item ) {
-			if ( is_array( $item ) ) {
-				foreach ( array( 'translation', 'translated', 'text', 't' ) as $name ) {
-					if ( isset( $item[ $name ] ) && is_string( $item[ $name ] ) ) {
-						$item = $item[ $name ];
+			if ( isset( $data['translations'] ) && is_array( $data['translations'] ) ) {
+				return array(
+					'list' => self::items( $data['translations'] ),
+					'key'  => 'translations',
+				);
+			}
+			if ( isset( $data['result']['translations'] ) && is_array( $data['result']['translations'] ) ) {
+				return array(
+					'list' => self::items( $data['result']['translations'] ),
+					'key'  => 'translations',
+				);
+			}
+			if ( null === $fallback ) {
+				foreach ( array( 'result', 'strings' ) as $name ) {
+					if ( isset( $data[ $name ] ) && is_array( $data[ $name ] ) ) {
+						$fallback = array( $data[ $name ], $name );
 						break;
 					}
 				}
+			}
+		}
+		if ( null === $fallback ) {
+			return null;
+		}
+		return array(
+			'list' => self::items( $fallback[0] ),
+			'key'  => $fallback[1],
+		);
+	}
+
+	/**
+	 * Values of a translations list, unwrapping items like {"translation": "..."}.
+	 *
+	 * @param array $list List or numbered object.
+	 * @return array
+	 */
+	private static function items( array $list ) {
+		$out = array();
+		foreach ( $list as $item ) {
+			if ( is_array( $item ) ) {
+				$value = null;
+				foreach ( array( 'translation', 'translated', 'translated_text', 'target', 'output', 'text' ) as $name ) {
+					if ( isset( $item[ $name ] ) && is_string( $item[ $name ] ) ) {
+						$value = $item[ $name ];
+						break;
+					}
+				}
+				$item = $value;
 			}
 			$out[] = is_string( $item ) ? $item : null;
 		}
@@ -264,46 +308,49 @@ abstract class AI_Engine extends Base_Engine {
 	}
 
 	/**
-	 * First complete JSON object or list in a text.
+	 * Complete JSON objects and lists found in a text, outermost ones, in order.
+	 * One linear pass; long answers and many candidates are cut off.
 	 *
 	 * @param string $text Text.
-	 * @return string|null
+	 * @return array[] Decoded values.
 	 */
-	private static function first_json( $text ) {
+	private static function json_values( $text ) {
+		$text   = substr( $text, 0, 200000 );
 		$length = strlen( $text );
-		for ( $start = 0; $start < $length; $start++ ) {
-			if ( '{' !== $text[ $start ] && '[' !== $text[ $start ] ) {
+		$out    = array();
+		$stack  = 0;
+		$start  = 0;
+		$quote  = false;
+		$tries  = 0;
+		for ( $i = 0; $i < $length && $tries < 50; $i++ ) {
+			$c = $text[ $i ];
+			if ( $quote ) {
+				if ( '\\' === $c ) {
+					++$i;
+				} elseif ( '"' === $c ) {
+					$quote = false;
+				}
 				continue;
 			}
-			$depth    = 0;
-			$in_quote = false;
-			for ( $i = $start; $i < $length; $i++ ) {
-				$c = $text[ $i ];
-				if ( $in_quote ) {
-					if ( '\\' === $c ) {
-						++$i;
-					} elseif ( '"' === $c ) {
-						$in_quote = false;
-					}
-					continue;
+			if ( '{' === $c || '[' === $c ) {
+				if ( 0 === $stack ) {
+					$start = $i;
 				}
-				if ( '"' === $c ) {
-					$in_quote = true;
-				} elseif ( '{' === $c || '[' === $c ) {
-					++$depth;
-				} elseif ( '}' === $c || ']' === $c ) {
-					--$depth;
-					if ( 0 === $depth ) {
-						$candidate = substr( $text, $start, $i - $start + 1 );
-						if ( is_array( json_decode( $candidate, true ) ) ) {
-							return $candidate;
-						}
-						break;
+				++$stack;
+			} elseif ( ( '}' === $c || ']' === $c ) && $stack > 0 ) {
+				--$stack;
+				if ( 0 === $stack ) {
+					++$tries;
+					$value = json_decode( substr( $text, $start, $i - $start + 1 ), true );
+					if ( is_array( $value ) ) {
+						$out[] = $value;
 					}
 				}
+			} elseif ( '"' === $c && $stack > 0 ) {
+				$quote = true; // Quotes only matter inside a candidate ("it's" in prose is fine).
 			}
 		}
-		return null;
+		return $out;
 	}
 
 	/**
@@ -311,12 +358,25 @@ abstract class AI_Engine extends Base_Engine {
 	 *
 	 * Batches whose answer did not match (wrong number of texts, cut off, one text
 	 * refused) are sent again in halves while there is time, so one difficult text
-	 * does not hand a whole batch to another engine.
+	 * does not hand a whole batch to another engine. The extra requests are
+	 * limited, and splitting stops when all parts of a level fail.
 	 */
 	public function translate_batches( array $batches, array $source, array $target, array $context, $deadline ) {
 		$results = parent::translate_batches( $batches, $source, $target, $context, $deadline );
+		// Enough extra requests to isolate one difficult text in each batch (two per halving).
+		$this->split_budget = 0;
+		foreach ( $batches as $batch ) {
+			$this->split_budget += 2 * (int) ceil( log( max( 2, count( $batch ) ), 2 ) );
+		}
 		return $this->split_retry( $batches, $results, $source, $target, $context, $deadline, 0 );
 	}
+
+	/**
+	 * Extra requests split_retry() may still send during this call.
+	 *
+	 * @var int
+	 */
+	private $split_budget = 0;
 
 	/**
 	 * Retry failed batches in halves (recursively, down to single texts).
@@ -342,9 +402,10 @@ abstract class AI_Engine extends Base_Engine {
 			$parts[] = array( $key, 0, array_slice( $texts, 0, $half ) );
 			$parts[] = array( $key, $half, array_slice( $texts, $half ) );
 		}
-		if ( ! $parts || $this->error || $depth > 4 || $deadline - microtime( true ) < 8 ) {
+		if ( ! $parts || $this->error || $depth > 4 || count( $parts ) > $this->split_budget || $deadline - microtime( true ) < 8 ) {
 			return $results;
 		}
+		$this->split_budget -= count( $parts );
 
 		$sent = $this->sent;
 		$sub  = array();
@@ -352,7 +413,10 @@ abstract class AI_Engine extends Base_Engine {
 			$sub[ $i ] = $part[2];
 		}
 		$answers = parent::translate_batches( $sub, $source, $target, $context, $deadline );
-		$answers = $this->split_retry( $sub, $answers, $source, $target, $context, $deadline, $depth + 1 );
+		// Go deeper only while splitting helps: when every part failed, smaller ones will too.
+		if ( $answers ) {
+			$answers = $this->split_retry( $sub, $answers, $source, $target, $context, $deadline, $depth + 1 );
+		}
 		foreach ( $answers as $i => $list ) {
 			list( $key, $offset ) = $parts[ $i ];
 			foreach ( (array) $list as $position => $translation ) {

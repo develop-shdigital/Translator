@@ -105,6 +105,38 @@ $shdt_status    = Engine_Status::get( $plugin );
 			<div class="shdt-card__head">
 				<h2><?php esc_html_e( 'Engine status', 'shd-translator' ); ?></h2>
 			</div>
+			<?php if ( Engine_Status::MISSING === $shdt_status['state'] ) : ?>
+				<p class="shdt-warn"><span class="dashicons dashicons-warning" aria-hidden="true"></span>
+					<?php
+					echo esc_html(
+						$shdt_status['missing']
+							/* translators: 1: engine name, 2: missing settings, e.g. "API key" */
+							? sprintf( __( '%1$s is not set up yet (%2$s missing).', 'shd-translator' ), $shdt_status['label'], implode( ', ', $shdt_status['missing'] ) )
+							/* translators: %s: engine name */
+							: sprintf( __( '%s is not set up yet.', 'shd-translator' ), $shdt_status['label'] )
+					);
+					?>
+				</p>
+			<?php elseif ( Engine_Status::FAILING === $shdt_status['state'] ) : ?>
+				<p class="shdt-warn"><span class="dashicons dashicons-warning" aria-hidden="true"></span>
+					<?php
+					/* translators: 1: engine name, 2: duration, e.g. "3 hours", 3: error message */
+					echo esc_html( sprintf( __( '%1$s has been failing for %2$s: %3$s', 'shd-translator' ), $shdt_status['label'], human_time_diff( (int) $shdt_status['failure']['since'] ), \SHDT\Engines\Engine_Exception::describe( $shdt_status['failure'], $shdt_status['label'] ) ) );
+					?>
+				</p>
+			<?php elseif ( Engine_Status::OK === $shdt_status['state'] ) : ?>
+				<p class="shdt-ok"><span class="dashicons dashicons-yes-alt" aria-hidden="true"></span>
+					<?php
+					echo esc_html(
+						$shdt_status['untested']
+							/* translators: %s: engine name */
+							? sprintf( __( '%s: no problems recorded.', 'shd-translator' ), $shdt_status['label'] )
+							/* translators: %s: engine name */
+							: sprintf( __( '%s answers again.', 'shd-translator' ), $shdt_status['label'] )
+					);
+					?>
+				</p>
+			<?php endif; ?>
 			<?php if ( $shdt_paused ) : ?>
 				<ul class="shdt-list">
 					<?php foreach ( $shdt_paused as $shdt_item ) : ?>
@@ -119,36 +151,15 @@ $shdt_status    = Engine_Status::get( $plugin );
 					<?php endforeach; ?>
 				</ul>
 				<p><button type="button" class="button" id="shdt-resume"><?php esc_html_e( 'Resume now', 'shd-translator' ); ?></button></p>
-			<?php elseif ( Engine_Status::MISSING === $shdt_status['state'] ) : ?>
-				<p class="shdt-warn"><span class="dashicons dashicons-warning" aria-hidden="true"></span>
-					<?php
-					/* translators: 1: engine name, 2: missing settings */
-					echo esc_html( sprintf( __( '%1$s is not set up yet: %2$s missing.', 'shd-translator' ), $shdt_status['label'], $shdt_status['missing'] ? implode( ', ', $shdt_status['missing'] ) : __( 'settings', 'shd-translator' ) ) );
-					?>
-				</p>
-			<?php elseif ( Engine_Status::FAILING === $shdt_status['state'] ) : ?>
-				<p class="shdt-warn"><span class="dashicons dashicons-warning" aria-hidden="true"></span>
-					<?php
-					/* translators: 1: engine name, 2: time ago, 3: error message */
-					echo esc_html( sprintf( __( '%1$s is failing (since %2$s): %3$s', 'shd-translator' ), $shdt_status['label'], human_time_diff( (int) $shdt_status['failure']['since'] ), $shdt_status['failure']['message'] ) );
-					?>
-				</p>
-			<?php else : ?>
-				<p class="shdt-ok"><span class="dashicons dashicons-yes-alt" aria-hidden="true"></span>
-					<?php
-					/* translators: %s: engine name */
-					echo esc_html( sprintf( __( '%s works.', 'shd-translator' ), $shdt_status['label'] ) );
-					?>
-				</p>
 			<?php endif; ?>
-			<?php if ( $shdt_status['counts']['total'] > 0 ) : ?>
+			<?php if ( $shdt_status['redone'] > 0 ) : ?>
 				<p>
 					<?php
 					echo esc_html(
 						sprintf(
-							/* translators: 1: number of texts, 2: engine names, 3: selected engine */
-							_n( '%1$s text on your site comes from %2$s instead of %3$s.', '%1$s texts on your site come from %2$s instead of %3$s.', $shdt_status['counts']['total'], 'shd-translator' ),
-							number_format_i18n( $shdt_status['counts']['total'] ),
+							/* translators: 1: number of texts, 2: engine name, 3: selected engine */
+							_n( '%1$s text on your site currently comes from %2$s and is redone with %3$s in the background.', '%1$s texts on your site currently come from %2$s and are redone with %3$s in the background.', $shdt_status['redone'], 'shd-translator' ),
+							number_format_i18n( $shdt_status['redone'] ),
 							$shdt_status['fallback'],
 							$shdt_status['label']
 						)
@@ -157,7 +168,7 @@ $shdt_status    = Engine_Status::get( $plugin );
 						echo ' ' . esc_html(
 							sprintf(
 								/* translators: %s: number of texts */
-								_n( '%s of them could not be re-translated yet; they are retried once a day, or use "Re-translate them now" below.', '%s of them could not be re-translated yet; they are retried once a day, or use "Re-translate them now" below.', $shdt_status['counts']['stuck'], 'shd-translator' ),
+								_n( '%s of them failed several times; it is retried once a day.', '%s of them failed several times; they are retried once a day.', $shdt_status['counts']['stuck'], 'shd-translator' ),
 								number_format_i18n( $shdt_status['counts']['stuck'] )
 							)
 						);
@@ -168,8 +179,9 @@ $shdt_status    = Engine_Status::get( $plugin );
 			<?php if ( is_array( $shdt_error ) && ! empty( $shdt_error['message'] ) ) : ?>
 				<p class="shdt-muted">
 					<?php
+					$shdt_error_label = Engine_Status::label( $plugin, (string) $shdt_error['engine'] );
 					/* translators: 1: engine name, 2: time ago, 3: message */
-					echo esc_html( sprintf( __( 'Last error (%1$s, %2$s ago): %3$s', 'shd-translator' ), Engine_Status::label( $plugin, (string) $shdt_error['engine'] ), human_time_diff( (int) $shdt_error['time'] ), $shdt_error['message'] ) );
+					echo esc_html( sprintf( __( 'Last error (%1$s, %2$s ago): %3$s', 'shd-translator' ), $shdt_error_label, human_time_diff( (int) $shdt_error['time'] ), \SHDT\Engines\Engine_Exception::describe( $shdt_error, $shdt_error_label ) ) );
 					?>
 				</p>
 			<?php endif; ?>

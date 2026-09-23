@@ -33,7 +33,8 @@ class Engine_Status {
 	 *     @type array|null  $pause    Pause (engine, label, lang, until, message).
 	 *     @type array|null  $failure  Latest failure (message, time, since, count).
 	 *     @type array       $counts   Store::count_fallback().
-	 *     @type string      $fallback Names of the engines that translated instead, or of the free fallback.
+	 *     @type string      $fallback Name of the free engine that translates instead.
+	 *     @type int         $redone   Texts from other engines the queue redoes with this one.
 	 *     @type bool        $fallback_on Whether "Fall back to the free engines" is on.
 	 * }
 	 */
@@ -69,15 +70,18 @@ class Engine_Status {
 			}
 		}
 
-		// Name the engines that actually filled in; otherwise the free fallback.
-		$names = array();
-		foreach ( array_keys( $status['counts']['engines'] ) as $other ) {
-			$names[] = self::label( $plugin, $other );
+		// Name the free engine that fills in: the one most of the waiting texts come
+		// from, otherwise the first one of the chain.
+		$fallback = 'google' !== $id ? 'google' : 'mymemory';
+		foreach ( array_keys( $status['counts']['fallback'] ) as $other ) {
+			if ( in_array( $other, array( 'google', 'browser', 'mymemory' ), true ) && $other !== $id ) {
+				$fallback = $other;
+				break;
+			}
 		}
-		if ( ! $names ) {
-			$names[] = self::label( $plugin, 'google' !== $id ? 'google' : 'mymemory' );
-		}
-		$status['fallback'] = implode( ', ', array_unique( array_slice( $names, 0, 3 ) ) );
+		$status['fallback']  = self::label( $plugin, $fallback );
+		$status['redone']    = $status['counts']['outdated'] + $status['counts']['stuck'];
+		$status['untested']  = ! $status['failure'] && ! isset( Base_Engine::health()[ $id ] );
 
 		return $status;
 	}

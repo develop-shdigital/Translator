@@ -157,6 +157,9 @@ Filters:
 | `shdt_dynamic_rate_limit`, `shdt_dynamic_daily_limit` (int) | Limits of the public endpoint for JavaScript content (calls per visitor per 5 minutes, new texts per day). |
 | `shdt_search_rate_limit`, `shdt_search_daily_limit` (int) | Limits for translating search terms back (per visitor per 10 minutes, per day). |
 | `shdt_http_args`, `shdt_parallel_requests`, `shdt_engine_concurrency` | HTTP tuning. Requests run in parallel unless a proxy, `WP_HTTP_BLOCK_EXTERNAL`, `pre_http_request` or `shdt_http_args` is in use; then they go through `wp_remote_request()` one by one. |
+| `shdt_billing_pause` (int) | Seconds an engine pauses when its API account has no credit (default 1800). |
+
+Actions: `shdt_translations_updated` (lang, original texts) fires after the background queue added or replaced translations, e.g. to purge a page cache.
 
 PHP helpers: `shdt()->languages()->current()`, `shdt()->router()->localize_url( $url, 'de' )`, `SHDT\Switcher::render( $args )`.
 

@@ -379,7 +379,11 @@
 						step();
 						return;
 					}
-					if (res.remaining > 0 && res.paused && Object.keys(res.paused).length) {
+					// Only the selected engine's pause explains waiting texts.
+					var primaryPaused = Array.isArray(res.paused) && res.paused.some(function (p) {
+						return p && p.engine === cfg.engine;
+					});
+					if (res.remaining > 0 && primaryPaused) {
 						queueText.textContent += ' · ' + t.paused;
 					}
 					queueBtn.disabled = false;

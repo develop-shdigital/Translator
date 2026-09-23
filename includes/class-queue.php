@@ -34,6 +34,18 @@ class Queue {
 	 */
 	public function hooks() {
 		add_action( self::HOOK, array( $this, 'run' ) );
+		add_action( 'init', array( $this, 'check_version' ) );
+	}
+
+	/**
+	 * Plugin files updated but the upgrade has not run yet (it runs on admin screens
+	 * and at the start of a queue run): plan a run, so sites whose admins rarely log
+	 * in get it too. Costs one autoloaded option read.
+	 */
+	public function check_version() {
+		if ( ! is_admin() && get_option( 'shdt_db_version' ) !== SHDT_DB_VERSION ) {
+			$this->schedule( 10 );
+		}
 	}
 
 	/**
@@ -60,6 +72,8 @@ class Queue {
 	 * @return array [ translated, failed, remaining ]
 	 */
 	public function run( $seconds = 45 ) {
+		// An update that replaced the plugin files: upgrade before working (also when no admin logs in).
+		Installer::maybe_install();
 		if ( get_transient( 'shdt_queue_lock' ) ) {
 			return array( 0, 0, shdt()->store()->count_pending() );
 		}
@@ -97,12 +111,26 @@ class Queue {
 
 		self::$running = false;
 		delete_transient( 'shdt_queue_lock' );
+		if ( $done || $failed ) {
+			delete_transient( Store::FALLBACK_COUNTS ); // The admin counts changed.
+		}
 
 		// Outdated rows can only be redone by the selected engine: while it is not
-		// set up there is nothing to come back for.
+		// set up there is nothing to come back for. Without any usable engine
+		// (not set up and no fallback) nothing is.
 		$primary   = $translator->engine( $translator->primary_id() );
 		$usable    = $primary && $primary->is_available();
 		$remaining = $store->count_pending( $usable ? array( Store::PENDING, Store::OUTDATED ) : array( Store::PENDING ) );
+		if ( ! $translator->chain( true ) ) {
+			$remaining = 0;
+		}
+		if ( 0 === $remaining && $usable && ! wp_next_scheduled( self::HOOK ) ) {
+			// Rows that used up their attempts are retried once a day.
+			$retry = $store->next_retry();
+			if ( $retry ) {
+				wp_schedule_single_event( max( time() + MINUTE_IN_SECONDS, $retry + 30 ), self::HOOK );
+			}
+		}
 		if ( $remaining > 0 && ! wp_next_scheduled( self::HOOK ) ) {
 			// Quick follow-up while progress is made; after a pause, right when it ends.
 			$delay = 15 * MINUTE_IN_SECONDS;

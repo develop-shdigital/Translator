@@ -99,7 +99,8 @@ class Mymemory extends Base_Engine {
 		$quota_ended = false !== stripos( $text, 'MYMEMORY WARNING' ) || ! empty( $data['quotaFinished'] ) || 429 === $code;
 		if ( $quota_ended ) {
 			// Never store the warning as a translation.
-			throw new Engine_Exception( __( 'MyMemory daily quota reached.', 'shd-translator' ), 6 * HOUR_IN_SECONDS, 429 );
+			$error = new Engine_Exception( __( 'MyMemory daily quota reached.', 'shd-translator' ), 6 * HOUR_IN_SECONDS, 429 );
+			throw $error->kind( 'daily_quota' );
 		}
 		if ( 200 !== $code || '' === $text ) {
 			return array();

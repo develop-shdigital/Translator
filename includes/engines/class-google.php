@@ -86,7 +86,8 @@ class Google extends Base_Engine {
 	protected function parse_response( array $texts, $status, $body, array $headers ) {
 		if ( 429 === $status || 403 === $status ) {
 			// Google blocks by IP; back off for a while instead of slowing every page view.
-			throw new Engine_Exception( __( 'Google temporarily rate-limited this server. Translations continue in the background, or use "Translate with my browser" under Tools.', 'shd-translator' ), 1800, $status );
+			$error = new Engine_Exception( __( 'Google temporarily rate-limited this server. Translations continue in the background, or use "Translate with my browser" under Tools.', 'shd-translator' ), 1800, $status );
+			throw $error->kind( 'rate_limited_server' );
 		}
 		if ( 200 !== $status ) {
 			throw $this->http_error( $status, substr( wp_strip_all_tags( $body ), 0, 200 ), $headers );
@@ -94,7 +95,8 @@ class Google extends Base_Engine {
 
 		$data = json_decode( $body, true );
 		if ( ! is_array( $data ) ) {
-			throw new Engine_Exception( __( 'Unexpected response from Google Translate.', 'shd-translator' ), 300 );
+			$error = new Engine_Exception( __( 'Unexpected response from Google Translate.', 'shd-translator' ), 300 );
+			throw $error->kind( 'unexpected' );
 		}
 		// A single string may come back unwrapped.
 		if ( 1 === count( $texts ) && isset( $data[0] ) && is_string( $data[0] ) && count( $data ) > 1 && ! is_string( $data[1] ) ) {

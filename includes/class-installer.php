@@ -36,6 +36,10 @@ class Installer {
 	 */
 	private static function resume_queue() {
 		if ( function_exists( 'shdt' ) && shdt()->store() ) {
+			// Pauses and caches from before (object caches keep transients that uninstall cannot delete).
+			shdt()->translator()->resume_all();
+			delete_transient( Store::FALLBACK_COUNTS );
+			delete_transient( 'shdt_queue_lock' );
 			shdt()->translator()->recovered();
 		}
 	}
@@ -94,6 +98,7 @@ class Installer {
 			thash char(32) NOT NULL DEFAULT '',
 			status tinyint(1) unsigned NOT NULL DEFAULT 0,
 			engine varchar(32) NOT NULL DEFAULT '',
+			origin varchar(16) NOT NULL DEFAULT '',
 			attempts tinyint(3) unsigned NOT NULL DEFAULT 0,
 			url varchar(255) NOT NULL DEFAULT '',
 			created_at datetime NOT NULL,
@@ -109,7 +114,7 @@ class Installer {
 		update_option( 'shdt_db_version', SHDT_DB_VERSION, true );
 
 		// Sites set up with 1.0 chose their engine already: no "choose your engine" notice.
-		if ( false !== $previous && false !== get_option( Settings::OPTION, false ) ) {
+		if ( '1' === $previous && false !== get_option( Settings::OPTION, false ) ) {
 			add_option( 'shdt_settings_saved', 1, '', 'no' );
 		}
 
