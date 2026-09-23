@@ -13,20 +13,26 @@ defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
 function shdt_uninstall_site() {
 	global $wpdb;
 
+	// Always: engine pauses, error records and caches. A reinstall starts clean
+	// instead of inheriting a pause or an old error.
+	foreach ( array( 'shdt_last_error', 'shdt_engine_health', 'shdt_openai_format' ) as $option ) {
+		delete_option( $option );
+	}
+	$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '\_transient\_shdt\_%' OR option_name LIKE '\_transient\_timeout\_shdt\_%'" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	wp_clear_scheduled_hook( 'shdt_process_queue' );
+
+	// Translations and settings only when the site owner asked for it.
 	$settings = get_option( 'shdt_settings', array() );
 	if ( empty( $settings['delete_data'] ) ) {
-		wp_clear_scheduled_hook( 'shdt_process_queue' );
 		return;
 	}
 
 	$table = $wpdb->prefix . 'shdt_strings';
 	$wpdb->query( "DROP TABLE IF EXISTS {$table}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.SchemaChange
 
-	foreach ( array( 'shdt_settings', 'shdt_db_version', 'shdt_last_error' ) as $option ) {
+	foreach ( array( 'shdt_settings', 'shdt_db_version', 'shdt_settings_saved', 'shdt_retranslate_dismissed' ) as $option ) {
 		delete_option( $option );
 	}
-	$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '\_transient\_shdt\_%' OR option_name LIKE '\_transient\_timeout\_shdt\_%'" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-	wp_clear_scheduled_hook( 'shdt_process_queue' );
 }
 
 if ( is_multisite() ) {

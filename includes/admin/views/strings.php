@@ -95,9 +95,9 @@ $shdt_statuses = array(
 						<tr data-id="<?php echo esc_attr( $shdt_r['id'] ); ?>" class="shdt-status-<?php echo esc_attr( $shdt_state ); ?>">
 							<td class="shdt-col-lang">
 								<strong><?php echo esc_html( $shdt_l ? $shdt_l['label'] : $shdt_r['lang'] ); ?></strong>
-								<span class="shdt-badge shdt-badge--<?php echo esc_attr( $shdt_state ); ?>"><?php echo esc_html( $shdt_statuses[ $shdt_state ] ); ?></span>
-								<?php if ( $shdt_r['engine'] ) : ?>
-									<small class="shdt-engine-name"><?php echo esc_html( $shdt_r['engine'] ); ?></small>
+								<span class="shdt-badge shdt-badge--<?php echo esc_attr( $shdt_state ); ?>"><?php echo esc_html( Store::OUTDATED === $shdt_state && isset( $shdt_r['attempts'] ) && (int) $shdt_r['attempts'] >= Store::MAX_ATTEMPTS ? __( 'Re-translation failed', 'shd-translator' ) : $shdt_statuses[ $shdt_state ] ); ?></span>
+								<?php if ( $shdt_r['engine'] && Store::VISITOR !== $shdt_r['engine'] ) : ?>
+									<small class="shdt-engine-name"><?php echo esc_html( \SHDT\Admin\Engine_Status::label( $plugin, $shdt_r['engine'] ) ); ?></small>
 								<?php endif; ?>
 							</td>
 							<td class="shdt-original">

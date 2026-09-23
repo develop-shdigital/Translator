@@ -4,7 +4,7 @@ Tags: translation, multilingual, elementor, language switcher, ai
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -49,11 +49,25 @@ Yes. Edited translations are never overwritten automatically.
 
 Stored translations are reused. After saving the new engine, click "Re-translate them with Claude" in the notice on the settings page, or use Tools → "Re-translate with the current engine". The old texts stay online until the new ones are ready; manual edits are kept.
 
+= I chose OpenAI, but texts still come from Google Translate =
+
+The red notice at the top of the admin says why. Most often the OpenAI API account has no credit (the API is billed separately from ChatGPT), the API key is missing, or translations were kept from before a reinstall. Fix the cause and click "Test the saved engine": the texts Google filled in are then redone with OpenAI automatically.
+
 = Are URL slugs translated? =
 
 Not yet. Translated pages keep the original slug with a language prefix, e.g. /fr/about-us/.
 
 == Changelog ==
+
+= 1.1.0 =
+* The admin always sees when and why the free engine translates instead of the selected one (not set up, paused, failing), with the number of texts affected.
+* OpenAI: an account without credit or over its spending limit is recognised (no more 2-minute retries while Google translates everything); error codes are used instead of guessing from the message.
+* OpenAI: structured outputs on api.openai.com, automatic switch to a simpler answer format for servers that do not support it, tolerant answer parsing.
+* AI engines: batches with the wrong number of answers are retried in smaller parts.
+* Fallback translations are redone with the selected engine as soon as it works again; service outages no longer use up retries, and texts that ran out of retries are tried again daily (also those stuck with version 1.0).
+* "Translate again" only uses the selected engine. Export and import keep the engine of each text.
+* API keys: pasted keys are cleaned (spaces, "Bearer "), and a saved key is only dropped when the server really changes.
+* Deleting the plugin also clears engine pauses and error records; the plugins screen says what happens to the data.
 
 = 1.0.0 =
 * First release.

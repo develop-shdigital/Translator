@@ -81,13 +81,15 @@ Requirements: WordPress 5.8+, PHP 7.4+, MySQL/MariaDB (or SQLite), pretty permal
 | **Google Translate (free)** | no | good | Default. Unofficial free endpoint without SLA. Busy server IPs can be rate-limited; the engine then pauses itself, translation continues in the background, and *Tools → Translate with my browser* can finish waiting texts from your own browser. |
 | **Claude AI (Anthropic)** | yes | excellent | Recommended. Sees the page title and the texts around each string, your tone instructions and glossary, and keeps link/format tags intact. Default model `claude-opus-5`; `claude-sonnet-5` and `claude-haiku-4-5` are faster and cheaper. |
 | **DeepL** | yes (free plan available) | very good | Free keys (`…:fx`) are detected automatically. Formality (Sie/du) is configurable. |
-| **OpenAI-compatible** | depends | very good | OpenAI, OpenRouter, Mistral, or a local Ollama / LM Studio server. |
+| **OpenAI-compatible** | depends | very good | OpenAI, OpenRouter, Mistral, or a local Ollama / LM Studio server. On OpenAI itself the answers use structured outputs (exactly one translation per text); other servers get JSON mode, and a server that rejects a format is switched to a simpler one automatically. Default model `gpt-4o-mini`. The API is billed separately from ChatGPT: the API account needs prepaid credit. |
 | **LibreTranslate** | optional | fair | Self-hosted, open source. |
 | **MyMemory** | no | fair | Free with a small daily quota (50,000 characters with an e-mail address). |
 
 With **Fall back to the free engines** switched on (default), texts the selected engine cannot translate (missing key, quota, outage) go to Google and then MyMemory, so the site keeps working.
 
-Engines that fail with a rate limit or authentication error pause themselves for a while (circuit breaker), so a broken key never slows down your pages. A rejected request pauses only what it affects: a language an engine does not support is paused for that language alone, and a request Claude or OpenAI refuses fails only that request. See *Tools → Engine status*.
+Engines that fail with a rate limit or authentication error pause themselves for a while (circuit breaker), so a broken key never slows down your pages. A rejected request pauses only what it affects: a language an engine does not support is paused for that language alone, and a request Claude or OpenAI refuses fails only that request. An account without credit or over its spending limit pauses the engine for 30 minutes. Answers with the wrong number of texts are retried in smaller batches before another engine is used. See *Tools → Engine status*.
+
+**You always see which engine translates.** Whenever the selected engine is not set up, paused or failing, a red notice on every admin screen says why, which engine translates instead and how many texts it did. Those texts are stored as *being re-translated*: the queue redoes them with the selected engine as soon as it works again (after *Test the saved engine* succeeds, right away). Problems of the service itself (no credit, wrong key, outage, network) never use up a text's retries, and texts whose retries ran out are tried again once a day. Switch off *Fall back to the free engines* if you prefer texts to stay in the original language while the selected engine does not work.
 
 **Switching engines:** texts that are already translated stay as they are until you decide otherwise. After you select a new engine, the settings page offers to *re-translate* the existing automatic translations with it (edited and imported translations are always kept). The old texts stay online until the new ones replace them in the background; *Tools* shows the progress and has the same button. Texts a fallback engine translated while the selected engine was paused are redone with the selected engine automatically once it works again.
 
@@ -170,6 +172,14 @@ Sites like nutrimont.ch ship curated, per-language texts (human-written or AI-ge
 
 **I added a Claude key, but the pages still show the Google translations. Why?**
 Every text is translated once and then served from the database, so switching the engine does not change texts that are already translated. After saving the new engine, the settings page asks whether to *re-translate* them with Claude; the same button is under *Tools → Re-translate with the current engine*. The current texts stay online until the new ones are ready, and your manual edits are kept. Use *Test the saved engine* to check the key first: if Claude is paused (for example because the account has no credit), the free engines fill in meanwhile and those texts are redone with Claude automatically once it works.
+
+**I chose OpenAI (or Claude), but texts still come from Google Translate. What is wrong?**
+The notice at the top of the admin says it. The usual causes:
+- *No credit*: the OpenAI API bills separately from a ChatGPT subscription. Add credit under Billing in your API account, then click *Test the saved engine*.
+- *Not set up*: the API key or model is missing, for example after deleting the plugin with *Delete all translations and settings* switched on (a reinstall then starts with the free Google engine).
+- *Kept translations*: deleting the plugin keeps translations and settings unless that option is on, so Google texts from before come back after a reinstall. The settings page offers to re-translate them.
+- *Network*: your server cannot reach the API (firewall); the notice shows the error.
+Texts Google filled in are redone automatically once the selected engine works. *Tools → Engine status* shows how many texts still come from another engine.
 
 **Does it work with Elementor Pro, WooCommerce, forms, popups?**
 Yes. Everything that ends up in the page HTML is translated, and content inserted later by JavaScript is translated in the browser. Theme Builder headers and footers, popups, loop grids, forms and WooCommerce pages all work.

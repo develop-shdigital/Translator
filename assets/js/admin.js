@@ -66,12 +66,33 @@
 		syncEngines();
 	}
 
+	// Engine settings edited but not saved yet: the test uses the saved ones.
+	var engineDirty = false;
+	$$('.shdt-engine-fields input, .shdt-engine-fields select').forEach(function (field) {
+		field.addEventListener('input', function () {
+			engineDirty = true;
+		});
+	});
+	// A masked key is replaced as a whole when something is typed or pasted.
+	$$('.shdt-engine-fields input[type="password"]').forEach(function (field) {
+		field.addEventListener('focus', function () {
+			if (/^[\u2022*]+$/.test(field.value)) {
+				field.select();
+			}
+		});
+	});
+
 	var testBtn = document.getElementById('shdt-test-engine');
 	if (testBtn) {
 		testBtn.addEventListener('click', function () {
 			var out = document.querySelector('.shdt-test__result');
 			var checked = document.querySelector('input[name="engine"]:checked');
 			out.className = 'shdt-test__result';
+			if (engineDirty || (checked && cfg.engine && checked.value !== cfg.engine)) {
+				out.classList.add('is-error');
+				out.textContent = t.saveFirst;
+				return;
+			}
 			out.textContent = t.testing;
 			testBtn.disabled = true;
 			api('test-engine', { method: 'POST', body: { engine: checked ? checked.value : 'google' } }).then(function (res) {

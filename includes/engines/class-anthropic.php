@@ -128,10 +128,10 @@ class Anthropic extends AI_Engine {
 
 		$stop = isset( $data['stop_reason'] ) ? $data['stop_reason'] : '';
 		if ( 'refusal' === $stop ) {
-			throw new Engine_Exception( __( 'Claude declined to translate this batch.', 'shd-translator' ), 0 );
+			throw new Engine_Exception( __( 'Claude declined to translate this batch.', 'shd-translator' ), 0, 0, Engine_Exception::SCOPE_ENGINE, true, true );
 		}
 		if ( 'max_tokens' === $stop ) {
-			throw new Engine_Exception( __( 'Claude answer was cut off (batch too large).', 'shd-translator' ), 0 );
+			throw new Engine_Exception( __( 'Claude answer was cut off (batch too large).', 'shd-translator' ), 0, 0, Engine_Exception::SCOPE_ENGINE, true, true );
 		}
 
 		$text = '';

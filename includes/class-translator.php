@@ -220,12 +220,13 @@ class Translator {
 	/**
 	 * All current pauses, for the admin screens.
 	 *
+	 * @param string|null $only Only this engine.
 	 * @return array[] engine, label, lang, until, message
 	 */
-	public function pauses() {
+	public function pauses( $only = null ) {
 		$out   = array();
 		$langs = array_merge( array( null ), array_keys( $this->languages->active() ) );
-		foreach ( array_keys( self::engine_classes() ) as $id ) {
+		foreach ( null === $only ? array_keys( self::engine_classes() ) : array( (string) $only ) as $id ) {
 			foreach ( $langs as $lang ) {
 				$pause = get_transient( self::pause_key( $id, $lang ) );
 				if ( ! is_array( $pause ) ) {
@@ -338,9 +339,9 @@ class Translator {
 	/**
 	 * Store machine results (false means "translate this sentence in pieces").
 	 *
-	 * Results produced by a fallback engine while the selected engine is set up
-	 * (e.g. Google while Claude was paused) are shown right away but stored as
-	 * OUTDATED, so the queue redoes them with the selected engine later.
+	 * Results produced by another engine than the selected one (e.g. Google while
+	 * OpenAI was paused, failing or not set up yet) are shown right away but stored
+	 * as OUTDATED, and the queue redoes them with the selected engine once it works.
 	 *
 	 * @param string $lang    Language.
 	 * @param array  $results key => string|false.
@@ -348,21 +349,43 @@ class Translator {
 	 * @param string $engine  Engine id override (e.g. "browser").
 	 */
 	public function save( $lang, array $results, $url = '', $engine = '' ) {
-		$primary   = $this->primary_id();
-		$engine_ok = $this->engine( $primary );
-		$upgrade   = $engine_ok && $engine_ok->is_available();
-		$items     = array();
+		$primary  = $this->primary_id();
+		$items    = array();
+		$outdated = false;
 		foreach ( $results as $key => $value ) {
 			$by      = '' !== $engine ? $engine : ( isset( $this->last_engine[ $key ] ) ? $this->last_engine[ $key ] : '' );
+			$other   = '' !== $by && ! self::same_engine( $by, $primary );
 			$items[] = array(
 				'original'   => (string) $key,
 				'translated' => false === $value ? '' : (string) $value,
 				'engine'     => $by,
 				'url'        => $url,
-				'status'     => $upgrade && '' !== $by && ! self::same_engine( $by, $primary ) ? Store::OUTDATED : Store::AUTO,
+				'status'     => $other ? Store::OUTDATED : Store::AUTO,
 			);
+			$outdated = $outdated || $other;
 		}
 		$this->store->save_many( $lang, $items );
+
+		if ( $outdated ) {
+			delete_transient( Store::FALLBACK_COUNTS );
+			$this->schedule_upgrade( $lang );
+		}
+	}
+
+	/**
+	 * Make sure the queue comes back to redo fallback translations with the
+	 * selected engine: shortly after its pause ends, or in five minutes.
+	 *
+	 * @param string|null $lang Language of the new rows.
+	 */
+	public function schedule_upgrade( $lang = null ) {
+		$primary = $this->engine( $this->primary_id() );
+		if ( ! $primary || ! $primary->is_available() || Queue::is_running() ) {
+			return;
+		}
+		$pause = $this->paused( $primary->id(), $lang );
+		$delay = is_array( $pause ) && isset( $pause['until'] ) ? max( 60, (int) $pause['until'] - time() + 30 ) : 5 * MINUTE_IN_SECONDS;
+		shdt()->queue()->schedule( $delay );
 	}
 
 	/**
@@ -433,9 +456,14 @@ class Translator {
 				$payload[ $index ] = array_values( $batch );
 			}
 
-			$answers = $engine->translate_batches( $payload, $source, $target, $context, $deadline );
-			$sent    = method_exists( $engine, 'sent' ) ? $engine->sent() : array_keys( $batches );
+			$answers  = $engine->translate_batches( $payload, $source, $target, $context, $deadline );
+			$sent     = method_exists( $engine, 'sent' ) ? $engine->sent() : array_keys( $batches );
+			$failures = method_exists( $engine, 'failures' ) ? $engine->failures() : array();
 			foreach ( $sent as $index ) {
+				// No credit, bad key, outage, network: not the texts' fault, no attempt used.
+				if ( isset( $failures[ $index ] ) && ! $failures[ $index ]->counts ) {
+					continue;
+				}
 				foreach ( array_keys( $batches[ $index ] ) as $key ) {
 					$this->attempted[ (string) $key ] = true;
 				}
@@ -627,7 +655,9 @@ class Translator {
 
 		$results = $this->machine_translate( array( $text ), $source, $target, array( 'isolate' => true ), microtime( true ) + 5 );
 		if ( isset( $results[ $text ] ) && is_string( $results[ $text ] ) ) {
-			set_transient( $cache_key, $results[ $text ], WEEK_IN_SECONDS );
+			// A fallback engine's answer is kept only briefly: the selected one may work again soon.
+			$by = isset( $this->last_engine[ $text ] ) ? $this->last_engine[ $text ] : '';
+			set_transient( $cache_key, $results[ $text ], self::same_engine( $by, $this->primary_id() ) ? WEEK_IN_SECONDS : HOUR_IN_SECONDS );
 			return $results[ $text ];
 		}
 		// No engine answered (paused, offline): try again a little later.
@@ -653,7 +683,7 @@ class Translator {
 	}
 
 	/**
-	 * Try an engine with a sample sentence.
+	 * Try an engine with a few sample texts (sent as one batch, like page texts).
 	 *
 	 * @param string $id Engine id.
 	 * @return array [ ok, message ]
@@ -664,6 +694,11 @@ class Translator {
 			return array( false, __( 'Unknown engine.', 'shd-translator' ) );
 		}
 		if ( ! $engine->is_available() ) {
+			$missing = method_exists( $engine, 'missing' ) ? $engine->missing() : array();
+			if ( $missing ) {
+				/* translators: %s: list of missing settings, e.g. "API key, Model" */
+				return array( false, sprintf( __( 'This engine is not configured yet: %s missing. Enter it and save.', 'shd-translator' ), implode( ', ', $missing ) ) );
+			}
 			return array( false, __( 'This engine is not configured yet (API key or URL missing).', 'shd-translator' ) );
 		}
 		$targets = $this->languages->targets();
@@ -673,18 +708,45 @@ class Translator {
 			$catalog = Languages::catalog();
 			$target  = array_merge( $catalog[ $target['code'] ], $target );
 		}
-		$sample  = 'Welcome! <x1>Discover</x1> our services and get in touch today.';
-		$answers = $engine->translate_batches( array( array( $sample ) ), $source, $target, array(), microtime( true ) + 30 );
-		if ( ! empty( $answers[0][0] ) ) {
+		$samples = array(
+			'Welcome! <x1>Discover</x1> our services and get in touch today.',
+			'Contact us',
+			'Opening hours',
+		);
+		$answers = $engine->translate_batches( array( $samples ), $source, $target, array(), microtime( true ) + 30 );
+		if ( isset( $answers[0] ) && count( array_filter( (array) $answers[0], 'strlen' ) ) === count( $samples ) ) {
 			delete_transient( self::pause_key( $id ) );
 			delete_transient( self::pause_key( $id, $target['code'] ) );
-			return array( true, $answers[0][0] );
+			Engines\Base_Engine::healthy( $id );
+			$last = get_option( 'shdt_last_error' );
+			if ( is_array( $last ) && isset( $last['engine'] ) && $last['engine'] === $id ) {
+				delete_option( 'shdt_last_error' );
+			}
+			if ( $id === $this->primary_id() ) {
+				$this->recovered();
+			}
+			return array( true, implode( ' · ', (array) $answers[0] ) );
 		}
 		$error = $engine->error();
-		$last  = get_option( 'shdt_last_error' );
+		if ( ! $error && method_exists( $engine, 'failures' ) ) {
+			$failures = $engine->failures();
+			$error    = $failures ? reset( $failures ) : null;
+		}
 		if ( $error ) {
 			return array( false, $error->getMessage() );
 		}
+		$last = get_option( 'shdt_last_error' );
 		return array( false, is_array( $last ) && $last['engine'] === $id ? $last['message'] : __( 'No answer from the engine.', 'shd-translator' ) );
+	}
+
+	/**
+	 * The selected engine works (again): give failed texts a fresh set of attempts
+	 * and let the queue redo fallback translations soon.
+	 */
+	public function recovered() {
+		$this->store->reset_attempts();
+		if ( $this->store->count_pending() > 0 ) {
+			shdt()->queue()->schedule( 30, true );
+		}
 	}
 }

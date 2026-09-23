@@ -23,6 +23,16 @@ class Store {
 	const VISITOR = 'visitor';
 
 	/**
+	 * Failed attempts after which a row is only retried once a day.
+	 */
+	const MAX_ATTEMPTS = 5;
+
+	/**
+	 * Transient caching count_fallback().
+	 */
+	const FALLBACK_COUNTS = 'shdt_fallback_counts';
+
+	/**
 	 * Table name.
 	 *
 	 * @return string
@@ -163,12 +173,17 @@ class Store {
 	 * @param int[]    $statuses PENDING and/or OUTDATED.
 	 * @param string[] $langs    Languages; null = the active target languages
 	 *                           (rows of removed languages wait until they are added again).
+	 * @param int[]    $exclude  Row ids to leave out (already tried in this run).
 	 * @return array id, lang, original, status, engine
 	 */
-	public function get_pending( $limit = 200, array $statuses = array( self::PENDING, self::OUTDATED ), $langs = null ) {
+	public function get_pending( $limit = 200, array $statuses = array( self::PENDING, self::OUTDATED ), $langs = null, array $exclude = array() ) {
 		global $wpdb;
-		$table = self::table();
-		$where = self::pending_where( $statuses, $langs );
+		$table   = self::table();
+		$where   = self::pending_where( $statuses, $langs );
+		$exclude = array_filter( array_map( 'absint', $exclude ) );
+		if ( $exclude ) {
+			$where .= ' AND id NOT IN (' . implode( ',', $exclude ) . ')';
+		}
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $where is prepared in pending_where().
 		return (array) $wpdb->get_results( $wpdb->prepare( "SELECT id, lang, original, status, engine FROM {$table} WHERE {$where} ORDER BY status ASC, attempts ASC, id ASC LIMIT %d", $limit ), ARRAY_A );
 	}
@@ -188,7 +203,9 @@ class Store {
 				return '1 = 0';
 			}
 		}
-		$where = 'status IN (' . implode( ',', array_map( 'absint', $statuses ? $statuses : array( self::PENDING ) ) ) . ') AND attempts < 5';
+		// Rows that failed too often are retried once a day instead of every run.
+		$where = 'status IN (' . implode( ',', array_map( 'absint', $statuses ? $statuses : array( self::PENDING ) ) ) . ')'
+			. $wpdb->prepare( ' AND (attempts < %d OR updated_at < %s)', self::MAX_ATTEMPTS, gmdate( 'Y-m-d H:i:s', time() - DAY_IN_SECONDS ) );
 		if ( $langs ) {
 			$langs  = array_values( array_map( 'strval', $langs ) );
 			$where .= $wpdb->prepare( ' AND lang IN (' . implode( ',', array_fill( 0, count( $langs ), '%s' ) ) . ')', $langs ); // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQL.NotPrepared
@@ -223,7 +240,72 @@ class Store {
 		$engines = array_values( array_merge( array_map( 'strval', $engines ), array( 'manual', 'import' ) ) );
 		$in      = implode( ',', array_fill( 0, count( $engines ), '%s' ) );
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
-		return $wpdb->prepare( "status = 1 AND engine NOT IN ({$in})", $engines );
+		return $wpdb->prepare( "(status = 1 OR (status = 3 AND attempts >= %d)) AND engine NOT IN ({$in})", array_merge( array( self::MAX_ATTEMPTS ), $engines ) );
+	}
+
+	/**
+	 * Translations made by other engines than the selected one, for the admin:
+	 * auto (kept as they are), outdated (queued to be redone), stuck (the redo failed
+	 * too often). Cached for a few minutes.
+	 *
+	 * @param string[] $engines Engine ids that count as "current".
+	 * @return array { auto, outdated, stuck, total, engines: id => count }
+	 */
+	public function count_fallback( array $engines ) {
+		$key    = md5( implode( ',', $engines ) );
+		$cached = get_transient( self::FALLBACK_COUNTS );
+		if ( is_array( $cached ) && isset( $cached[ $key ] ) ) {
+			return $cached[ $key ];
+		}
+
+		global $wpdb;
+		$table   = self::table();
+		$exclude = array_values( array_merge( array_map( 'strval', $engines ), array( 'manual', 'import', '', self::VISITOR ) ) );
+		$in      = implode( ',', array_fill( 0, count( $exclude ), '%s' ) );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- placeholders built above.
+		$rows = (array) $wpdb->get_results( $wpdb->prepare( "SELECT engine, status, attempts >= %d AS stuck, COUNT(*) AS n FROM {$table} WHERE status IN (1, 3) AND engine NOT IN ({$in}) GROUP BY engine, status, stuck", array_merge( array( self::MAX_ATTEMPTS ), $exclude ) ), ARRAY_A );
+
+		$out = array(
+			'auto'     => 0,
+			'outdated' => 0,
+			'stuck'    => 0,
+			'total'    => 0,
+			'engines'  => array(),
+		);
+		foreach ( $rows as $row ) {
+			$n = (int) $row['n'];
+			if ( 1 === (int) $row['status'] ) {
+				$out['auto'] += $n;
+			} elseif ( (int) $row['stuck'] ) {
+				$out['stuck'] += $n;
+			} else {
+				$out['outdated'] += $n;
+			}
+			$out['total'] += $n;
+
+			$out['engines'][ $row['engine'] ] = ( isset( $out['engines'][ $row['engine'] ] ) ? $out['engines'][ $row['engine'] ] : 0 ) + $n;
+		}
+		arsort( $out['engines'] );
+
+		$cached         = is_array( $cached ) ? $cached : array();
+		$cached[ $key ] = $out;
+		set_transient( self::FALLBACK_COUNTS, $cached, 5 * MINUTE_IN_SECONDS );
+		return $out;
+	}
+
+	/**
+	 * Give rows that failed before another full set of attempts (after the
+	 * engine works again, e.g. credit added or key fixed).
+	 *
+	 * @return int Rows reset.
+	 */
+	public function reset_attempts() {
+		global $wpdb;
+		$table = self::table();
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$count = (int) $wpdb->query( "UPDATE {$table} SET attempts = 0 WHERE status IN (0, 3) AND attempts > 0" );
+		delete_transient( self::FALLBACK_COUNTS );
+		return $count;
 	}
 
 	/**
@@ -252,7 +334,9 @@ class Store {
 		$table = self::table();
 		$where = self::other_engine_where( $engines );
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $where is prepared.
-		return (int) $wpdb->query( "UPDATE {$table} SET status = 3, attempts = 0 WHERE {$where}" );
+		$count = (int) $wpdb->query( "UPDATE {$table} SET status = 3, attempts = 0 WHERE {$where}" );
+		delete_transient( self::FALLBACK_COUNTS );
+		return $count;
 	}
 
 	/**
@@ -268,7 +352,7 @@ class Store {
 		}
 		$table = self::table();
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- IDs are absint() above.
-		$wpdb->query( "UPDATE {$table} SET attempts = attempts + 1 WHERE id IN (" . implode( ',', $ids ) . ')' );
+		$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET attempts = attempts + 1, updated_at = %s WHERE id IN (" . implode( ',', $ids ) . ')', self::now() ) );
 	}
 
 	/**
@@ -392,6 +476,7 @@ class Store {
 			return 0;
 		}
 		$table = self::table();
+		delete_transient( self::FALLBACK_COUNTS );
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- IDs are absint() above.
 		return (int) $wpdb->query( "DELETE FROM {$table} WHERE id IN (" . implode( ',', $ids ) . ')' );
 	}
@@ -439,7 +524,7 @@ class Store {
 		$sql_where = implode( ' AND ', $where );
 
 		$count_sql = "SELECT COUNT(*) FROM {$table} WHERE {$sql_where}";
-		$list_sql  = "SELECT id, lang, original, translated, status, engine, url, updated_at FROM {$table} WHERE {$sql_where} ORDER BY id DESC LIMIT %d OFFSET %d";
+		$list_sql  = "SELECT id, lang, original, translated, status, engine, attempts, url, updated_at FROM {$table} WHERE {$sql_where} ORDER BY id DESC LIMIT %d OFFSET %d";
 
 		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
 		$total = (int) ( $params ? $wpdb->get_var( $wpdb->prepare( $count_sql, $params ) ) : $wpdb->get_var( $count_sql ) );
@@ -512,6 +597,7 @@ class Store {
 			$where[] = 'status = 0';
 		}
 		$sql = "DELETE FROM {$table} WHERE " . implode( ' AND ', $where );
+		delete_transient( self::FALLBACK_COUNTS );
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		return (int) ( $params ? $wpdb->query( $wpdb->prepare( $sql, $params ) ) : $wpdb->query( $sql ) );
 	}
@@ -527,10 +613,10 @@ class Store {
 		$table = self::table();
 		if ( '' !== $lang ) {
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-			return (array) $wpdb->get_results( $wpdb->prepare( "SELECT lang, original, translated, status FROM {$table} WHERE status > 0 AND lang = %s ORDER BY id", $lang ), ARRAY_A );
+			return (array) $wpdb->get_results( $wpdb->prepare( "SELECT lang, original, translated, status, engine FROM {$table} WHERE status > 0 AND lang = %s ORDER BY id", $lang ), ARRAY_A );
 		}
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		return (array) $wpdb->get_results( "SELECT lang, original, translated, status FROM {$table} WHERE status > 0 ORDER BY id", ARRAY_A );
+		return (array) $wpdb->get_results( "SELECT lang, original, translated, status, engine FROM {$table} WHERE status > 0 ORDER BY id", ARRAY_A );
 	}
 
 	/**
@@ -563,10 +649,14 @@ class Store {
 			if ( isset( $row['status'] ) && self::MANUAL === (int) $row['status'] ) {
 				$this->save_manual( $lang, $original, $translated );
 			} else {
+				// Keep which engine made an automatic translation, so Google texts moved
+				// from another site are still recognised (and redone) as Google texts.
+				$engine          = isset( $row['engine'] ) && is_string( $row['engine'] ) && preg_match( '/^[a-z0-9_\-]{1,32}$/', $row['engine'] ) && ! in_array( $row['engine'], array( 'manual', self::VISITOR ), true ) ? $row['engine'] : 'import';
 				$auto[ $lang ][] = array(
 					'original'   => $original,
 					'translated' => $translated,
-					'engine'     => 'import',
+					'engine'     => $engine,
+					'status'     => 'import' !== $engine && isset( $row['status'] ) && self::OUTDATED === (int) $row['status'] ? self::OUTDATED : self::AUTO,
 				);
 			}
 			$count++;
@@ -574,6 +664,7 @@ class Store {
 		foreach ( $auto as $lang => $items ) {
 			$this->save_many( $lang, $items );
 		}
+		delete_transient( self::FALLBACK_COUNTS );
 		return $count;
 	}
 

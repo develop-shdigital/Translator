@@ -47,6 +47,7 @@ class Admin {
 		add_action( 'admin_post_shdt_keep_translations', array( $this, 'keep_translations' ) );
 		add_action( 'admin_notices', array( $this, 'notices' ) );
 		add_filter( 'plugin_action_links_' . SHDT_BASENAME, array( $this, 'action_links' ) );
+		add_filter( 'plugin_row_meta', array( $this, 'row_meta' ), 10, 2 );
 	}
 
 	/**
@@ -54,6 +55,15 @@ class Admin {
 	 */
 	public function admin_init() {
 		Installer::maybe_install();
+
+		// Safety net: waiting texts but no queue run planned (lost cron event,
+		// restored database): plan one. Checked at most once an hour.
+		if ( ! wp_doing_ajax() && ! get_transient( 'shdt_queue_check' ) ) {
+			set_transient( 'shdt_queue_check', 1, HOUR_IN_SECONDS );
+			if ( ! wp_next_scheduled( \SHDT\Queue::HOOK ) && $this->plugin->store()->count_pending() > 0 ) {
+				$this->plugin->queue()->schedule( 60 );
+			}
+		}
 
 		if ( get_transient( 'shdt_activation_redirect' ) && current_user_can( 'manage_options' ) && ! wp_doing_ajax() && ! isset( $_GET['activate-multi'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			delete_transient( 'shdt_activation_redirect' );
@@ -122,6 +132,7 @@ class Admin {
 				'catalog'  => $catalog,
 				'flagsUrl' => SHDT_URL . 'assets/flags/',
 				'google'   => 'https://clients5.google.com/translate_a/t?client=dict-chrome-ex',
+				'engine'   => $this->plugin->translator()->primary_id(),
 				'i18n'     => array(
 					'remove'        => __( 'Remove', 'shd-translator' ),
 					'original'      => __( 'Original', 'shd-translator' ),
@@ -144,7 +155,10 @@ class Admin {
 					/* translators: %d: number of translations */
 					'deleted'       => __( '%d translations deleted', 'shd-translator' ),
 					'noPending'     => __( 'Nothing is waiting for translation.', 'shd-translator' ),
-					'paused'        => __( 'The translation service paused (rate limit). Try "Translate with my browser" below or wait a few minutes.', 'shd-translator' ),
+					'paused'        => 'google' === $this->plugin->translator()->primary_id()
+						? __( 'Google Translate paused (it limits busy servers). Try "Translate with my browser" below or wait a few minutes.', 'shd-translator' )
+						: __( 'The selected engine is paused – the message at the top of the page says why.', 'shd-translator' ),
+					'saveFirst'     => __( 'Save the settings first: the test uses the saved engine and key.', 'shd-translator' ),
 					'changeSource'  => __( 'Changing the original language means existing translations no longer match. Continue?', 'shd-translator' ),
 				),
 			)
@@ -160,6 +174,22 @@ class Admin {
 	public function action_links( $links ) {
 		array_unshift( $links, '<a href="' . esc_url( admin_url( 'admin.php?page=' . self::SLUG ) ) . '">' . esc_html__( 'Settings', 'shd-translator' ) . '</a>' );
 		return $links;
+	}
+
+	/**
+	 * Say on the plugins screen what deleting the plugin does with the data.
+	 *
+	 * @param array  $meta Row meta.
+	 * @param string $file Plugin file.
+	 * @return array
+	 */
+	public function row_meta( $meta, $file ) {
+		if ( SHDT_BASENAME === $file && current_user_can( 'manage_options' ) ) {
+			$meta[] = $this->plugin->settings()->on( 'delete_data' )
+				? esc_html__( 'Deleting removes all translations and settings.', 'shd-translator' )
+				: esc_html__( 'Deleting keeps translations and settings (see "Delete all translations and settings" in the settings).', 'shd-translator' );
+		}
+		return $meta;
 	}
 
 	/**
@@ -196,8 +226,42 @@ class Admin {
 		}
 
 		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
-		if ( ! $screen || false === strpos( (string) $screen->id, self::SLUG ) ) {
+		$ours   = $screen && false !== strpos( (string) $screen->id, self::SLUG );
+		$status = Engine_Status::get( $this->plugin );
+
+		// Whenever the selected engine is not the one translating, say so: on every
+		// screen for engines the site owner set up, on ours for the free Google engine
+		// (busy servers get short Google pauses that need no action).
+		if ( $ours || 'google' !== $status['id'] ) {
+			$this->engine_notice( $status );
+		}
+
+		if ( 'google' === $status['id'] && ! get_option( 'shdt_settings_saved' ) && ( $ours || ( $screen && in_array( $screen->id, array( 'dashboard', 'plugins' ), true ) ) ) ) {
+			printf(
+				'<div class="notice notice-info"><p>%s <a href="%s">%s</a></p></div>',
+				esc_html__( 'SHD Translator translates your site with the free Google Translate engine. For more natural texts, choose Claude, DeepL or an OpenAI-compatible API and save.', 'shd-translator' ),
+				esc_url( admin_url( 'admin.php?page=' . self::SLUG . '#shdt-engine' ) ),
+				esc_html__( 'Choose the engine', 'shd-translator' )
+			);
+		}
+
+		if ( ! $ours ) {
 			return;
+		}
+
+		$dropped = get_transient( 'shdt_key_dropped' );
+		if ( is_array( $dropped ) && ! empty( $dropped['host'] ) ) {
+			delete_transient( 'shdt_key_dropped' );
+			printf(
+				'<div class="notice notice-error"><p>%s</p></div>',
+				esc_html(
+					sprintf(
+						/* translators: %s: server name, e.g. api.example.com */
+						__( 'The saved API key was removed because the API address changed to %s. Enter the key for that server and save again.', 'shd-translator' ),
+						$dropped['host']
+					)
+				)
+			);
 		}
 
 		$invalid = get_transient( 'shdt_invalid_selectors' );
@@ -210,57 +274,40 @@ class Admin {
 			);
 		}
 
+		// Translations by other engines that nothing will redo on its own: offer it.
 		$translator = $this->plugin->translator();
-		$primary    = $translator->primary_id();
-		$engine     = $translator->engine( $primary );
-		$switch     = get_transient( 'shdt_engine_switch' );
-		if ( is_array( $switch ) && isset( $switch['engine'] ) && $switch['engine'] === $primary && $engine ) {
-			$count = $this->plugin->store()->count_other_engine( Translator::equivalent_ids( $primary ) );
-			if ( $count > 0 ) {
-				echo '<div class="notice notice-info shdt-switch-notice"><p><strong>';
-				echo esc_html(
-					sprintf(
-						/* translators: 1: number of texts, 2: engine name */
-						_n( '%1$s text on your site was translated before you switched to %2$s.', '%1$s texts on your site were translated before you switched to %2$s.', $count, 'shd-translator' ),
-						number_format_i18n( $count ),
-						$engine->label()
-					)
-				);
-				echo '</strong> ' . esc_html__( 'Stored translations are reused, so they stay as they are unless you re-translate them. The current texts remain online until the new ones are ready; your manual edits are kept.', 'shd-translator' ) . '</p><p>';
-				/* translators: %s: engine name */
-				echo self::action_button( 'shdt_retranslate', sprintf( __( 'Re-translate them with %s', 'shd-translator' ), $engine->label() ), 'button button-primary' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped in action_button().
-				echo ' ' . self::action_button( 'shdt_keep_translations', __( 'Keep the current translations', 'shd-translator' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped in action_button().
-				echo '</p></div>';
-			} else {
-				delete_transient( 'shdt_engine_switch' );
-			}
-		}
-
-		// The selected engine is paused: say why, and that the free engines fill in meanwhile.
-		foreach ( $translator->pauses() as $pause ) {
-			if ( $pause['engine'] !== $primary ) {
-				continue;
-			}
-			$scope = null === $pause['lang'] ? '' : ' (' . $pause['lang'] . ')';
+		$engine     = $translator->engine( $status['id'] );
+		$count      = $engine && $engine->is_available() ? $this->plugin->store()->count_other_engine( Translator::equivalent_ids( $status['id'] ) ) : 0;
+		if ( $count > 0 && get_option( 'shdt_retranslate_dismissed' ) !== $status['id'] ) {
+			echo '<div class="notice notice-info shdt-switch-notice"><p><strong>';
+			echo esc_html(
+				sprintf(
+					/* translators: 1: number of texts, 2: engine name */
+					_n( '%1$s text on your site was translated by another engine than %2$s.', '%1$s texts on your site were translated by other engines than %2$s.', $count, 'shd-translator' ),
+					number_format_i18n( $count ),
+					$status['label']
+				)
+			);
+			echo '</strong> ' . esc_html__( 'Stored translations are reused, so they stay as they are unless you re-translate them. The current texts remain online until the new ones are ready; your manual edits are kept.', 'shd-translator' ) . '</p><p>';
+			/* translators: %s: engine name */
+			echo self::action_button( 'shdt_retranslate', sprintf( __( 'Re-translate them with %s', 'shd-translator' ), $status['label'] ), 'button button-primary' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped in action_button().
+			echo ' ' . self::action_button( 'shdt_keep_translations', __( 'Keep the current translations', 'shd-translator' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped in action_button().
+			echo '</p></div>';
+		} elseif ( Engine_Status::OK === $status['state'] && $status['counts']['outdated'] > 0 ) {
 			printf(
-				'<div class="notice notice-error"><p><strong>%s</strong> %s</p><p>%s</p></div>',
+				'<div class="notice notice-info"><p>%s</p></div>',
 				esc_html(
 					sprintf(
-						/* translators: 1: engine name, 2: language in brackets or empty, 3: time */
-						__( '%1$s%2$s is paused for %3$s:', 'shd-translator' ),
-						$pause['label'],
-						$scope,
-						human_time_diff( time(), max( time() + 60, $pause['until'] ) )
+						/* translators: 1: number of texts, 2: engine names, 3: selected engine */
+						_n( '%1$s text currently comes from %2$s and is being re-translated with %3$s in the background.', '%1$s texts currently come from %2$s and are being re-translated with %3$s in the background.', $status['counts']['outdated'], 'shd-translator' ),
+						number_format_i18n( $status['counts']['outdated'] ),
+						$status['fallback'],
+						$status['label']
 					)
-				),
-				esc_html( $pause['message'] ),
-				esc_html(
-					$this->plugin->settings()->on( 'fallback_free' )
-						? __( 'Meanwhile the free engines translate new texts; those are redone automatically with the selected engine once it works again. Fix the cause, then use Tools → Resume now.', 'shd-translator' )
-						: __( 'New texts wait until it works again. Fix the cause, then use Tools → Resume now.', 'shd-translator' )
 				)
 			);
 		}
+
 		if ( 'directory' === $this->plugin->settings()->get( 'url_mode' ) && ! \SHDT\Router::pretty_permalinks() ) {
 			printf(
 				'<div class="notice notice-warning"><p>%s</p></div>',
@@ -276,6 +323,80 @@ class Admin {
 	}
 
 	/**
+	 * The selected engine is not set up, paused or failing: explain what happens
+	 * instead (which engine translates, how many texts) and how to fix it.
+	 *
+	 * @param array $status Engine_Status::get().
+	 */
+	private function engine_notice( array $status ) {
+		if ( ! Engine_Status::needs_attention( $status ) ) {
+			return;
+		}
+
+		switch ( $status['state'] ) {
+			case Engine_Status::MISSING:
+				$title  = $status['missing']
+					/* translators: 1: engine name, 2: missing settings, e.g. "API key" */
+					? sprintf( __( 'SHD Translator: %1$s is selected but not set up yet (%2$s missing).', 'shd-translator' ), $status['label'], implode( ', ', $status['missing'] ) )
+					/* translators: %s: engine name */
+					: sprintf( __( 'SHD Translator: %s is selected but not set up yet.', 'shd-translator' ), $status['label'] );
+				$reason = '';
+				break;
+			case Engine_Status::PAUSED:
+				$title  = sprintf(
+					/* translators: 1: engine name, 2: language in brackets or empty, 3: time */
+					__( 'SHD Translator: %1$s%2$s is paused for %3$s:', 'shd-translator' ),
+					$status['label'],
+					null === $status['pause']['lang'] ? '' : ' (' . $status['pause']['lang'] . ')',
+					human_time_diff( time(), max( time() + 60, $status['pause']['until'] ) )
+				);
+				$reason = $status['pause']['message'];
+				break;
+			default:
+				$title  = sprintf(
+					/* translators: 1: engine name, 2: time, e.g. "5 minutes" */
+					__( 'SHD Translator: %1$s failed %2$s ago:', 'shd-translator' ),
+					$status['label'],
+					human_time_diff( (int) $status['failure']['time'], time() )
+				);
+				$reason = $status['failure']['message'];
+		}
+
+		$shown = $status['counts']['outdated'] + $status['counts']['stuck'] + $status['counts']['auto'];
+		if ( $status['fallback_on'] ) {
+			$what = $shown > 0
+				? sprintf(
+					/* translators: 1: engine names, 2: number of texts, 3: selected engine */
+					_n( 'Until it works, %1$s translates your site instead (%2$s text so far); those texts are redone with %3$s automatically afterwards.', 'Until it works, %1$s translates your site instead (%2$s texts so far); those texts are redone with %3$s automatically afterwards.', $shown, 'shd-translator' ),
+					$status['fallback'],
+					number_format_i18n( $shown ),
+					$status['label']
+				)
+				: sprintf(
+					/* translators: 1: engine names, 2: selected engine */
+					__( 'Until it works, %1$s translates new texts instead; they are redone with %2$s automatically afterwards.', 'shd-translator' ),
+					$status['fallback'],
+					$status['label']
+				);
+		} else {
+			$what = __( 'Until it works, new texts stay in the original language ("Fall back to the free engines" is off).', 'shd-translator' );
+		}
+
+		$fix = Engine_Status::MISSING === $status['state']
+			? __( 'Set it up', 'shd-translator' )
+			: __( 'Fix the cause, then click "Test the saved engine"', 'shd-translator' );
+
+		printf(
+			'<div class="notice notice-error shdt-engine-notice"><p><strong>%s</strong> %s</p><p>%s <a href="%s">%s</a></p></div>',
+			esc_html( $title ),
+			esc_html( $reason ),
+			esc_html( $what ),
+			esc_url( admin_url( 'admin.php?page=' . self::SLUG . '#shdt-engine' ) ),
+			esc_html( $fix )
+		);
+	}
+
+	/**
 	 * Save settings.
 	 */
 	public function save_settings() {
@@ -284,24 +405,30 @@ class Admin {
 		}
 		check_admin_referer( 'shdt_save_settings' );
 
-		$settings   = $this->plugin->settings();
-		$old_engine = (string) $settings->get( 'engine', 'google' );
-		$clean      = $settings->sanitize( $_POST ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- unslashed and sanitised field by field.
+		$settings = $this->plugin->settings();
+		$clean    = $settings->sanitize( $_POST ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- unslashed and sanitised field by field.
 
 		// Keep stored API keys when the field is left untouched (they are shown masked),
-		// but never send a stored key to a server address that was just changed.
+		// but never send a stored key to a different server than the one it was saved for.
 		$servers = array(
 			'openai_key' => 'openai_base',
 			'libre_key'  => 'libre_url',
 		);
 		foreach ( array( 'anthropic_key', 'deepl_key', 'openai_key', 'libre_key' ) as $key ) {
-			if ( isset( $clean[ $key ] ) && self::MASK === $clean[ $key ] ) {
-				$moved         = isset( $servers[ $key ], $clean[ $servers[ $key ] ] ) && (string) $clean[ $servers[ $key ] ] !== (string) $settings->get( $servers[ $key ] );
-				$clean[ $key ] = $moved ? '' : $settings->get( $key );
+			if ( ! isset( $clean[ $key ] ) ) {
+				continue;
+			}
+			$stored        = (string) $settings->get( $key );
+			$untouched     = '' !== trim( (string) $clean[ $key ] ) && '' === preg_replace( '/^(?:\x{2022}|\*)+/u', '', trim( (string) $clean[ $key ] ) );
+			$clean[ $key ] = self::normalize_key( $clean[ $key ], $stored );
+			if ( $untouched && '' !== $stored && isset( $servers[ $key ], $clean[ $servers[ $key ] ] ) && ! self::same_server( $clean[ $servers[ $key ] ], (string) $settings->get( $servers[ $key ] ) ) ) {
+				$clean[ $key ] = '';
+				set_transient( 'shdt_key_dropped', array( 'host' => (string) wp_parse_url( $clean[ $servers[ $key ] ], PHP_URL_HOST ) ), HOUR_IN_SECONDS );
 			}
 		}
 
 		$settings->update( $clean );
+		update_option( 'shdt_settings_saved', 1, false );
 		$this->plugin->languages()->flush();
 
 		$selectors = new \SHDT\Selector( $settings->lines( 'exclude_selectors' ) );
@@ -310,24 +437,14 @@ class Admin {
 		} else {
 			delete_transient( 'shdt_invalid_selectors' );
 		}
-		$this->plugin->translator()->resume_all();
-
-		// Switched engine: offer to redo what the previous engine translated.
-		if ( $clean['engine'] !== $old_engine ) {
-			delete_transient( 'shdt_engine_switch' );
-			$engine = $this->plugin->translator()->engine( $clean['engine'] );
-			$count  = $this->plugin->store()->count_other_engine( Translator::equivalent_ids( $clean['engine'] ) );
-			if ( $engine && $engine->is_available() && $count > 0 ) {
-				set_transient(
-					'shdt_engine_switch',
-					array(
-						'engine' => $clean['engine'],
-						'count'  => $count,
-					),
-					30 * DAY_IN_SECONDS
-				);
-			}
+		// New settings: forget pauses and give failed texts another try with them.
+		$translator = $this->plugin->translator();
+		$translator->resume_all();
+		$primary = $translator->engine( $translator->primary_id() );
+		if ( $primary && $primary->is_available() ) {
+			$translator->recovered();
 		}
+		delete_transient( \SHDT\Store::FALLBACK_COUNTS );
 
 		wp_safe_redirect( add_query_arg( 'updated', 1, admin_url( 'admin.php?page=' . self::SLUG ) ) );
 		exit;
@@ -346,6 +463,51 @@ class Admin {
 	}
 
 	/**
+	 * The key to store from what was submitted in a (masked) key field.
+	 *
+	 * Only mask dots: unchanged. Dots followed by text (typed or pasted after the
+	 * mask): the text. Whitespace, line breaks and a leading "Bearer " are removed.
+	 * An empty field removes the key.
+	 *
+	 * @param string $raw    Submitted value.
+	 * @param string $stored Stored key.
+	 * @return string
+	 */
+	public static function normalize_key( $raw, $stored ) {
+		$raw = trim( (string) $raw );
+		if ( '' === $raw ) {
+			return '';
+		}
+		$rest = preg_replace( '/^(?:\x{2022}|\*)+/u', '', $raw );
+		if ( '' === $rest ) {
+			return (string) $stored; // Untouched mask.
+		}
+		$key = preg_replace( '/^Bearer\s+/i', '', trim( (string) $rest ) );
+		return (string) preg_replace( '/\s+/u', '', (string) $key );
+	}
+
+	/**
+	 * Whether two API addresses point to the same server (scheme, host and port;
+	 * the path and letter case do not matter).
+	 *
+	 * @param string $a URL.
+	 * @param string $b URL.
+	 * @return bool
+	 */
+	public static function same_server( $a, $b ) {
+		$origin = function ( $url ) {
+			$parts = wp_parse_url( trim( (string) $url ) );
+			if ( ! is_array( $parts ) || empty( $parts['host'] ) ) {
+				return '';
+			}
+			$scheme = isset( $parts['scheme'] ) ? strtolower( $parts['scheme'] ) : 'https';
+			$port   = isset( $parts['port'] ) ? (int) $parts['port'] : ( 'http' === $scheme ? 80 : 443 );
+			return $scheme . '://' . strtolower( $parts['host'] ) . ':' . $port;
+		};
+		return $origin( $a ) === $origin( $b );
+	}
+
+	/**
 	 * Redo automatic translations of other engines with the selected engine.
 	 * The old texts stay online until the new ones replace them.
 	 */
@@ -356,10 +518,10 @@ class Admin {
 		check_admin_referer( 'shdt_retranslate' );
 
 		$engine = $this->plugin->translator()->primary_id();
-		$count  = $this->plugin->store()->mark_outdated( Translator::equivalent_ids( $engine ) );
-		delete_transient( 'shdt_engine_switch' );
+		$usable = $this->plugin->translator()->engine( $engine );
+		$count  = $usable && $usable->is_available() ? $this->plugin->store()->mark_outdated( Translator::equivalent_ids( $engine ) ) : 0;
 		if ( $count > 0 ) {
-			$this->plugin->queue()->schedule( 5 );
+			$this->plugin->queue()->schedule( 5, true );
 		}
 
 		wp_safe_redirect(
@@ -382,7 +544,7 @@ class Admin {
 			wp_die( esc_html__( 'Sorry, you are not allowed to do that.', 'shd-translator' ) );
 		}
 		check_admin_referer( 'shdt_keep_translations' );
-		delete_transient( 'shdt_engine_switch' );
+		update_option( 'shdt_retranslate_dismissed', $this->plugin->translator()->primary_id(), false );
 		wp_safe_redirect( wp_get_referer() ? wp_get_referer() : admin_url( 'admin.php?page=' . self::SLUG ) );
 		exit;
 	}

@@ -14,6 +14,22 @@ class Queue {
 	const HOOK = 'shdt_process_queue';
 
 	/**
+	 * Whether run() is working right now (in this request).
+	 *
+	 * @var bool
+	 */
+	private static $running = false;
+
+	/**
+	 * Whether the queue is being processed in this request.
+	 *
+	 * @return bool
+	 */
+	public static function is_running() {
+		return self::$running;
+	}
+
+	/**
 	 * Hooks.
 	 */
 	public function hooks() {
@@ -21,12 +37,18 @@ class Queue {
 	}
 
 	/**
-	 * Schedule a run soon (idempotent).
+	 * Schedule a run (idempotent: an already planned run is kept).
 	 *
-	 * @param int $delay Seconds.
+	 * @param int  $delay  Seconds.
+	 * @param bool $sooner Move an already planned later run forward.
 	 */
-	public function schedule( $delay = 10 ) {
-		if ( ! wp_next_scheduled( self::HOOK ) ) {
+	public function schedule( $delay = 10, $sooner = false ) {
+		$next = wp_next_scheduled( self::HOOK );
+		if ( $next && $sooner && $next > time() + $delay + 30 ) {
+			wp_unschedule_event( $next, self::HOOK );
+			$next = false;
+		}
+		if ( ! $next ) {
 			wp_schedule_single_event( time() + $delay, self::HOOK );
 		}
 	}
@@ -47,17 +69,25 @@ class Queue {
 			@set_time_limit( $seconds + 60 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		}
 
-		$store    = shdt()->store();
-		$deadline = microtime( true ) + $seconds;
-		$done     = 0;
-		$failed   = 0;
+		$store         = shdt()->store();
+		$translator    = shdt()->translator();
+		$deadline      = microtime( true ) + $seconds;
+		$done          = 0;
+		$failed        = 0;
+		$tried         = array();
+		self::$running = true;
 
 		while ( microtime( true ) < $deadline ) {
-			$rows = $store->get_pending( 200 );
+			// Rows that failed in this run wait for the next one, so a failing
+			// batch cannot use up all its attempts within seconds.
+			$rows = $store->get_pending( 200, array( Store::PENDING, Store::OUTDATED ), null, array_keys( $tried ) );
 			if ( ! $rows ) {
 				break;
 			}
-			list( $ok, $ko ) = shdt()->translator()->translate_rows( $rows, $deadline );
+			foreach ( $rows as $row ) {
+				$tried[ (int) $row['id'] ] = true;
+			}
+			list( $ok, $ko ) = $translator->translate_rows( $rows, $deadline );
 			$done           += $ok;
 			$failed         += $ko;
 			if ( 0 === $ok ) {
@@ -65,12 +95,26 @@ class Queue {
 			}
 		}
 
+		self::$running = false;
 		delete_transient( 'shdt_queue_lock' );
 
-		$remaining = $store->count_pending();
-		if ( $remaining > 0 ) {
-			// Quick follow-up while progress is made, slow retry while engines are paused.
-			wp_schedule_single_event( time() + ( $done > 0 ? 20 : 15 * MINUTE_IN_SECONDS ), self::HOOK );
+		// Outdated rows can only be redone by the selected engine: while it is not
+		// set up there is nothing to come back for.
+		$primary   = $translator->engine( $translator->primary_id() );
+		$usable    = $primary && $primary->is_available();
+		$remaining = $store->count_pending( $usable ? array( Store::PENDING, Store::OUTDATED ) : array( Store::PENDING ) );
+		if ( $remaining > 0 && ! wp_next_scheduled( self::HOOK ) ) {
+			// Quick follow-up while progress is made; after a pause, right when it ends.
+			$delay = 15 * MINUTE_IN_SECONDS;
+			if ( $done > 0 ) {
+				$delay = 20;
+			} elseif ( $usable ) {
+				$pause = $translator->paused( $primary->id() );
+				if ( is_array( $pause ) && isset( $pause['until'] ) ) {
+					$delay = max( 60, min( HOUR_IN_SECONDS, (int) $pause['until'] - time() + 30 ) );
+				}
+			}
+			wp_schedule_single_event( time() + $delay, self::HOOK );
 		}
 		return array( $done, $failed, $remaining );
 	}

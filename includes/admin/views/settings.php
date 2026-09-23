@@ -12,6 +12,7 @@
 defined( 'ABSPATH' ) || exit;
 
 use SHDT\Admin\Admin;
+use SHDT\Admin\Engine_Status;
 use SHDT\Engines\Anthropic;
 
 $shdt_tab       = 'shd-translator';
@@ -26,13 +27,7 @@ foreach ( $shdt_stats as $shdt_row ) {
 }
 $shdt_engine_id = $settings['engine'];
 $shdt_engine    = isset( $engines[ $shdt_engine_id ] ) ? $engines[ $shdt_engine_id ] : null;
-$shdt_paused    = false;
-foreach ( $plugin->translator()->pauses() as $shdt_pause ) {
-	if ( $shdt_pause['engine'] === $shdt_engine_id ) {
-		$shdt_paused = $shdt_pause;
-		break;
-	}
-}
+$shdt_status    = Engine_Status::get( $plugin );
 $shdt_menus     = get_registered_nav_menus();
 
 /**
@@ -119,14 +114,21 @@ $shdt_row = function ( $key, $lang, $catalog, $is_source ) {
 			<span class="shdt-stat__value"><?php echo esc_html( number_format_i18n( $shdt_pending ) ); ?></span>
 			<span class="shdt-stat__label"><?php esc_html_e( 'Waiting', 'shd-translator' ); ?></span>
 		</div>
-		<div class="shdt-stat<?php echo $shdt_paused ? ' is-warning' : ''; ?>">
+		<div class="shdt-stat<?php echo Engine_Status::OK !== $shdt_status['state'] ? ' is-warning' : ''; ?>">
 			<span class="shdt-stat__value shdt-stat__value--text"><?php echo esc_html( $shdt_engine ? $shdt_engine->label() : '—' ); ?></span>
 			<span class="shdt-stat__label">
 				<?php
-				if ( $shdt_paused ) {
+				if ( Engine_Status::PAUSED === $shdt_status['state'] ) {
 					esc_html_e( 'Paused – see the message above', 'shd-translator' );
-				} elseif ( $shdt_engine && ! $shdt_engine->is_available() ) {
-					esc_html_e( 'Not configured – using the free fallback', 'shd-translator' );
+				} elseif ( Engine_Status::FAILING === $shdt_status['state'] ) {
+					esc_html_e( 'Failing – see the message above', 'shd-translator' );
+				} elseif ( Engine_Status::MISSING === $shdt_status['state'] ) {
+					if ( $shdt_status['fallback_on'] ) {
+						/* translators: %s: engine name, e.g. Google Translate */
+						echo esc_html( sprintf( __( 'Not set up – %s is used instead', 'shd-translator' ), $shdt_status['fallback'] ) );
+					} else {
+						esc_html_e( 'Not set up – texts stay untranslated', 'shd-translator' );
+					}
 				} else {
 					esc_html_e( 'Translation engine', 'shd-translator' );
 				}
@@ -424,7 +426,7 @@ $shdt_row = function ( $key, $lang, $catalog, $is_source ) {
 				<input type="number" id="shdt-budget" name="time_budget" min="0" max="120" value="<?php echo esc_attr( $settings['time_budget'] ); ?>" class="small-text">
 				<small><?php esc_html_e( 'Anything not finished in time is shown in the original language and completed in the background.', 'shd-translator' ); ?></small>
 			</p>
-			<?php $shdt_checkbox( $settings, 'delete_data', __( 'Delete all translations and settings when the plugin is deleted', 'shd-translator' ) ); ?>
+			<?php $shdt_checkbox( $settings, 'delete_data', __( 'Delete all translations and settings when the plugin is deleted', 'shd-translator' ), __( 'Off: deleting and reinstalling the plugin brings back your translations, engine and API keys. On: everything is removed, and after a reinstall the free Google engine is used until you choose another one.', 'shd-translator' ) ); ?>
 		</section>
 
 		<div class="shdt-savebar">

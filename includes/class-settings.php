@@ -210,6 +210,11 @@ class Settings {
 		}
 
 		$out['openai_base']    = isset( $raw['openai_base'] ) ? untrailingslashit( esc_url_raw( trim( wp_unslash( $raw['openai_base'] ) ) ) ) : $defaults['openai_base'];
+		// A pasted endpoint ("…/v1/chat/completions") instead of the base URL.
+		$out['openai_base'] = untrailingslashit( (string) preg_replace( '~/(?:chat/)?completions/?$~i', '', $out['openai_base'] ) );
+		if ( '' === $out['openai_base'] ) {
+			$out['openai_base'] = $defaults['openai_base'];
+		}
 		$out['libre_url']      = isset( $raw['libre_url'] ) ? untrailingslashit( esc_url_raw( trim( wp_unslash( $raw['libre_url'] ) ) ) ) : '';
 		$out['mymemory_email'] = isset( $raw['mymemory_email'] ) ? sanitize_email( wp_unslash( $raw['mymemory_email'] ) ) : '';
 

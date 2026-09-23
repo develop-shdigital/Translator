@@ -305,16 +305,25 @@ class Rest {
 		if ( ! $row || ! $languages->is_active( $row['lang'] ) ) {
 			return new \WP_Error( 'shdt_not_found', 'Not found', array( 'status' => 404 ) );
 		}
-		$results = $this->plugin->translator()->machine_translate(
+		// Only the selected engine: "Translate again" must never quietly use a fallback.
+		$translator = $this->plugin->translator();
+		$primary    = $translator->engine( $translator->primary_id() );
+		if ( ! $primary || ! $primary->is_available() ) {
+			return new \WP_Error( 'shdt_failed', __( 'The selected engine is not set up yet.', 'shd-translator' ), array( 'status' => 502 ) );
+		}
+		$results = $translator->machine_translate(
 			array( $row['original'] ),
 			$languages->get( $languages->default_code() ),
 			$languages->get( $row['lang'] ),
 			array(),
-			microtime( true ) + 30
+			microtime( true ) + 30,
+			true
 		);
 		if ( ! array_key_exists( $row['original'], $results ) ) {
-			$last = get_option( 'shdt_last_error' );
-			return new \WP_Error( 'shdt_failed', is_array( $last ) ? $last['message'] : __( 'Translation failed.', 'shd-translator' ), array( 'status' => 502 ) );
+			$failure = \SHDT\Engines\Base_Engine::failing( $primary->id(), HOUR_IN_SECONDS );
+			$pause   = $translator->paused( $primary->id(), $row['lang'] );
+			$message = is_array( $pause ) && ! empty( $pause['message'] ) ? $pause['message'] : ( $failure ? $failure['message'] : __( 'Translation failed.', 'shd-translator' ) );
+			return new \WP_Error( 'shdt_failed', $message, array( 'status' => 502 ) );
 		}
 		$store->delete_rows( array( (int) $row['id'] ) );
 		$this->plugin->translator()->save( $row['lang'], $results, $row['url'] );
@@ -503,6 +512,10 @@ class Rest {
 	 * @return \WP_REST_Response
 	 */
 	public function browser_results( \WP_REST_Request $request ) {
+		$translator = $this->plugin->translator();
+		if ( 'google' !== $translator->primary_id() && ! $this->plugin->settings()->on( 'fallback_free' ) ) {
+			return new \WP_Error( 'shdt_browser_off', __( 'Browser translation uses Google Translate, and the free fallback engines are switched off.', 'shd-translator' ), array( 'status' => 400 ) );
+		}
 		$items   = $request->get_param( 'items' );
 		$store   = $this->plugin->store();
 		$saved   = 0;
@@ -575,6 +588,7 @@ class Rest {
 	 */
 	public function resume() {
 		$this->plugin->translator()->resume_all();
+		$this->plugin->translator()->recovered();
 		return rest_ensure_response( array( 'ok' => true ) );
 	}
 }

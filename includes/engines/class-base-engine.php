@@ -38,6 +38,13 @@ abstract class Base_Engine implements Engine {
 	protected $sent = array();
 
 	/**
+	 * Why batches failed during the last run: batch key => Engine_Exception.
+	 *
+	 * @var Engine_Exception[]
+	 */
+	protected $failures = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Settings $settings Settings.
@@ -136,13 +143,23 @@ abstract class Base_Engine implements Engine {
 	}
 
 	/**
+	 * Why batches failed during the last translate_batches() call.
+	 *
+	 * @return Engine_Exception[] Batch key => exception.
+	 */
+	public function failures() {
+		return $this->failures;
+	}
+
+	/**
 	 * {@inheritDoc}
 	 */
 	public function translate_batches( array $batches, array $source, array $target, array $context, $deadline ) {
-		$this->error = null;
-		$this->sent  = array();
-		$results     = array();
-		$concurrency = max( 1, (int) apply_filters( 'shdt_engine_concurrency', $this->concurrency(), $this->id() ) );
+		$this->error    = null;
+		$this->sent     = array();
+		$this->failures = array();
+		$results        = array();
+		$concurrency    = max( 1, (int) apply_filters( 'shdt_engine_concurrency', $this->concurrency(), $this->id() ) );
 
 		foreach ( array_chunk( $batches, $concurrency, true ) as $group ) {
 			$remaining = $deadline - microtime( true );
@@ -166,6 +183,7 @@ abstract class Base_Engine implements Engine {
 					$results[ $key ] = $this->parse_response( array_values( $group[ $key ] ), $response['status'], $response['body'], $response['headers'] );
 				} catch ( Engine_Exception $e ) {
 					self::log( $this->id(), $e->getMessage() );
+					$this->failures[ $key ] = $e;
 					if ( $e->pause > 0 ) {
 						$this->error = $e;
 					}
@@ -175,6 +193,9 @@ abstract class Base_Engine implements Engine {
 			if ( $this->error ) {
 				break;
 			}
+		}
+		if ( $results ) {
+			self::healthy( $this->id() );
 		}
 		return $results;
 	}
@@ -208,7 +229,7 @@ abstract class Base_Engine implements Engine {
 				)
 			);
 			if ( is_wp_error( $response ) ) {
-				$out[ $key ] = new Engine_Exception( $response->get_error_message(), 0 );
+				$out[ $key ] = new Engine_Exception( $response->get_error_message(), 0, 0, Engine_Exception::SCOPE_ENGINE, false );
 				continue;
 			}
 			$headers = array();
@@ -291,7 +312,7 @@ abstract class Base_Engine implements Engine {
 			);
 		} catch ( \Exception $e ) {
 			foreach ( $requests as $key => $request ) {
-				$out[ $key ] = new Engine_Exception( $e->getMessage(), 0 );
+				$out[ $key ] = new Engine_Exception( $e->getMessage(), 0, 0, Engine_Exception::SCOPE_ENGINE, false );
 			}
 			return $out;
 		}
@@ -299,7 +320,7 @@ abstract class Base_Engine implements Engine {
 		foreach ( $requests as $key => $request ) {
 			$response = isset( $responses[ $key ] ) ? $responses[ $key ] : null;
 			if ( ! is_object( $response ) || $response instanceof \Exception || ! isset( $response->status_code ) ) {
-				$out[ $key ] = new Engine_Exception( $response instanceof \Exception ? $response->getMessage() : 'Request failed', 0 );
+				$out[ $key ] = new Engine_Exception( $response instanceof \Exception ? $response->getMessage() : 'Request failed', 0, 0, Engine_Exception::SCOPE_ENGINE, false );
 				continue;
 			}
 			$headers = array();
@@ -360,15 +381,90 @@ abstract class Base_Engine implements Engine {
 	 * @param string $message Message.
 	 */
 	public static function log( $engine, $message ) {
+		$message = wp_strip_all_tags( (string) $message );
 		update_option(
 			'shdt_last_error',
 			array(
 				'engine'  => $engine,
-				'message' => wp_strip_all_tags( (string) $message ),
+				'message' => $message,
 				'time'    => time(),
 			),
 			false
 		);
+
+		// Per engine: the latest failure, and since when it has not worked.
+		$health = self::health();
+		$entry  = isset( $health[ $engine ] ) ? $health[ $engine ] : array(
+			'ok'    => 0,
+			'count' => 0,
+		);
+
+		$entry['message'] = $message;
+		$entry['time']    = time();
+		$entry['count']   = (int) $entry['count'] + 1;
+		if ( empty( $entry['since'] ) || (int) $entry['ok'] >= (int) $entry['since'] ) {
+			$entry['since'] = time();
+		}
+		$health[ $engine ] = $entry;
+		update_option( 'shdt_engine_health', $health, true );
+	}
+
+	/**
+	 * Record that an engine answered, which ends a failure period.
+	 *
+	 * @param string $engine Engine id.
+	 */
+	public static function healthy( $engine ) {
+		$health = self::health();
+		if ( isset( $health[ $engine ] ) && (int) $health[ $engine ]['ok'] < (int) $health[ $engine ]['time'] ) {
+			$health[ $engine ]['ok']    = time();
+			$health[ $engine ]['count'] = 0;
+			update_option( 'shdt_engine_health', $health, true );
+		}
+	}
+
+	/**
+	 * Failure records of all engines: id => { message, time, since, ok, count }.
+	 *
+	 * @return array
+	 */
+	public static function health() {
+		$health = get_option( 'shdt_engine_health', array() );
+		$out    = array();
+		foreach ( is_array( $health ) ? $health : array() as $id => $entry ) {
+			if ( is_array( $entry ) ) {
+				$out[ $id ] = wp_parse_args(
+					$entry,
+					array(
+						'message' => '',
+						'time'    => 0,
+						'since'   => 0,
+						'ok'      => 0,
+						'count'   => 0,
+					)
+				);
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * The current failure of an engine: its latest error while it has not answered since.
+	 *
+	 * @param string $engine Engine id.
+	 * @param int    $max_age Ignore failures older than this (seconds).
+	 * @return array|null { message, time, since, count }
+	 */
+	public static function failing( $engine, $max_age = WEEK_IN_SECONDS ) {
+		$health = self::health();
+		if ( ! isset( $health[ $engine ] ) ) {
+			return null;
+		}
+		$entry = $health[ $engine ];
+		if ( (int) $entry['time'] <= (int) $entry['ok'] || (int) $entry['time'] < time() - $max_age ) {
+			return null;
+		}
+		return $entry;
 	}
 
 	/**

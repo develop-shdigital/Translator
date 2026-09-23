@@ -9,6 +9,7 @@
 defined( 'ABSPATH' ) || exit;
 
 use SHDT\Admin\Admin;
+use SHDT\Admin\Engine_Status;
 use SHDT\Store;
 use SHDT\Translator;
 
@@ -21,6 +22,7 @@ $shdt_error     = get_option( 'shdt_last_error' );
 $shdt_paused    = $plugin->translator()->pauses();
 $shdt_primary   = $plugin->translator()->engine( $plugin->translator()->primary_id() );
 $shdt_others    = $plugin->store()->count_other_engine( Translator::equivalent_ids( $plugin->translator()->primary_id() ) );
+$shdt_status    = Engine_Status::get( $plugin );
 ?>
 <div class="wrap shdt-wrap">
 	<?php require __DIR__ . '/header.php'; ?>
@@ -80,13 +82,23 @@ $shdt_others    = $plugin->store()->count_other_engine( Translator::equivalent_i
 				<button type="button" class="button button-primary" id="shdt-queue-run"><?php esc_html_e( 'Translate now', 'shd-translator' ); ?></button>
 				<span class="shdt-queue__text" aria-live="polite"></span>
 			</p>
+			<?php if ( 'google' === $shdt_status['id'] || $shdt_status['fallback_on'] ) : ?>
 			<hr>
 			<h3><?php esc_html_e( 'Translate with my browser', 'shd-translator' ); ?></h3>
 			<p><?php esc_html_e( 'If the free Google service limits your web server, your own browser can do the work instead: it translates the waiting texts and saves them to your site. No key needed.', 'shd-translator' ); ?></p>
+				<?php if ( 'google' !== $shdt_status['id'] ) : ?>
+				<p class="shdt-muted">
+					<?php
+					/* translators: %1$s: selected engine */
+					echo esc_html( sprintf( __( 'This uses Google Translate, not %1$s. The texts are redone with %1$s later.', 'shd-translator' ), $shdt_status['label'] ) );
+					?>
+				</p>
+				<?php endif; ?>
 			<p>
 				<button type="button" class="button" id="shdt-browser-run"><?php esc_html_e( 'Translate with my browser', 'shd-translator' ); ?></button>
 				<span class="shdt-browser__text" aria-live="polite"></span>
 			</p>
+			<?php endif; ?>
 		</section>
 
 		<section class="shdt-card">
@@ -107,14 +119,57 @@ $shdt_others    = $plugin->store()->count_other_engine( Translator::equivalent_i
 					<?php endforeach; ?>
 				</ul>
 				<p><button type="button" class="button" id="shdt-resume"><?php esc_html_e( 'Resume now', 'shd-translator' ); ?></button></p>
+			<?php elseif ( Engine_Status::MISSING === $shdt_status['state'] ) : ?>
+				<p class="shdt-warn"><span class="dashicons dashicons-warning" aria-hidden="true"></span>
+					<?php
+					/* translators: 1: engine name, 2: missing settings */
+					echo esc_html( sprintf( __( '%1$s is not set up yet: %2$s missing.', 'shd-translator' ), $shdt_status['label'], $shdt_status['missing'] ? implode( ', ', $shdt_status['missing'] ) : __( 'settings', 'shd-translator' ) ) );
+					?>
+				</p>
+			<?php elseif ( Engine_Status::FAILING === $shdt_status['state'] ) : ?>
+				<p class="shdt-warn"><span class="dashicons dashicons-warning" aria-hidden="true"></span>
+					<?php
+					/* translators: 1: engine name, 2: time ago, 3: error message */
+					echo esc_html( sprintf( __( '%1$s is failing (since %2$s): %3$s', 'shd-translator' ), $shdt_status['label'], human_time_diff( (int) $shdt_status['failure']['since'] ), $shdt_status['failure']['message'] ) );
+					?>
+				</p>
 			<?php else : ?>
-				<p class="shdt-ok"><span class="dashicons dashicons-yes-alt" aria-hidden="true"></span> <?php esc_html_e( 'All engines are available.', 'shd-translator' ); ?></p>
+				<p class="shdt-ok"><span class="dashicons dashicons-yes-alt" aria-hidden="true"></span>
+					<?php
+					/* translators: %s: engine name */
+					echo esc_html( sprintf( __( '%s works.', 'shd-translator' ), $shdt_status['label'] ) );
+					?>
+				</p>
+			<?php endif; ?>
+			<?php if ( $shdt_status['counts']['total'] > 0 ) : ?>
+				<p>
+					<?php
+					echo esc_html(
+						sprintf(
+							/* translators: 1: number of texts, 2: engine names, 3: selected engine */
+							_n( '%1$s text on your site comes from %2$s instead of %3$s.', '%1$s texts on your site come from %2$s instead of %3$s.', $shdt_status['counts']['total'], 'shd-translator' ),
+							number_format_i18n( $shdt_status['counts']['total'] ),
+							$shdt_status['fallback'],
+							$shdt_status['label']
+						)
+					);
+					if ( $shdt_status['counts']['stuck'] > 0 ) {
+						echo ' ' . esc_html(
+							sprintf(
+								/* translators: %s: number of texts */
+								_n( '%s of them could not be re-translated yet; they are retried once a day, or use "Re-translate them now" below.', '%s of them could not be re-translated yet; they are retried once a day, or use "Re-translate them now" below.', $shdt_status['counts']['stuck'], 'shd-translator' ),
+								number_format_i18n( $shdt_status['counts']['stuck'] )
+							)
+						);
+					}
+					?>
+				</p>
 			<?php endif; ?>
 			<?php if ( is_array( $shdt_error ) && ! empty( $shdt_error['message'] ) ) : ?>
 				<p class="shdt-muted">
 					<?php
-					/* translators: 1: engine id, 2: time ago, 3: message */
-					echo esc_html( sprintf( __( 'Last error (%1$s, %2$s ago): %3$s', 'shd-translator' ), $shdt_error['engine'], human_time_diff( (int) $shdt_error['time'] ), $shdt_error['message'] ) );
+					/* translators: 1: engine name, 2: time ago, 3: message */
+					echo esc_html( sprintf( __( 'Last error (%1$s, %2$s ago): %3$s', 'shd-translator' ), Engine_Status::label( $plugin, (string) $shdt_error['engine'] ), human_time_diff( (int) $shdt_error['time'] ), $shdt_error['message'] ) );
 					?>
 				</p>
 			<?php endif; ?>

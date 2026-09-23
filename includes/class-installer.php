@@ -26,7 +26,18 @@ class Installer {
 			return;
 		}
 		self::install();
+		self::resume_queue();
 		set_transient( 'shdt_activation_redirect', 1, 60 );
+	}
+
+	/**
+	 * After (re)activation or an update: translations kept from before get a fresh
+	 * set of attempts, and the queue is scheduled again (deactivation removed it).
+	 */
+	private static function resume_queue() {
+		if ( function_exists( 'shdt' ) && shdt()->store() ) {
+			shdt()->translator()->recovered();
+		}
 	}
 
 	/**
@@ -42,6 +53,7 @@ class Installer {
 	public static function maybe_install() {
 		if ( get_option( 'shdt_db_version' ) !== SHDT_DB_VERSION ) {
 			self::install();
+			self::resume_queue();
 		}
 	}
 
@@ -92,8 +104,14 @@ class Installer {
 			KEY status (status)
 		) {$charset};";
 
+		$previous = get_option( 'shdt_db_version' );
 		dbDelta( $sql );
 		update_option( 'shdt_db_version', SHDT_DB_VERSION, true );
+
+		// Sites set up with 1.0 chose their engine already: no "choose your engine" notice.
+		if ( false !== $previous && false !== get_option( Settings::OPTION, false ) ) {
+			add_option( 'shdt_settings_saved', 1, '', 'no' );
+		}
 
 		// First install: sensible defaults based on the site language.
 		if ( false === get_option( Settings::OPTION, false ) ) {
