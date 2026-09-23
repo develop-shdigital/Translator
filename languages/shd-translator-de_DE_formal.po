@@ -1,0 +1,1149 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: SHD Translator 1.0.0\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: de_DE_formal\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Domain: shd-translator\n"
+
+#. Plugin Name of the plugin
+#: shd-translator.php
+msgid "SHD Translator – Automatic AI Multilingual"
+msgstr "SHD Translator – Automatische KI-Mehrsprachigkeit"
+
+#. Plugin URI of the plugin
+#: shd-translator.php
+msgid "https://github.com/develop-shdigital/Translator"
+msgstr ""
+
+#. Description of the plugin
+#: shd-translator.php
+msgid "Automatically translates your whole WordPress / Elementor website into multiple languages. Works out of the box without any API key, uses AI (Claude, DeepL, OpenAI) for top quality when a key is added, and ships an Elementor language switcher widget."
+msgstr "Übersetzt Ihre gesamte WordPress-/Elementor-Website automatisch in mehrere Sprachen. Funktioniert sofort ohne API-Schlüssel, nutzt KI (Claude, DeepL, OpenAI) für beste Qualität, sobald ein Schlüssel hinterlegt ist, und bringt ein Elementor-Widget für den Sprachumschalter mit."
+
+#. Author of the plugin
+#: shd-translator.php
+msgid "SH Digital"
+msgstr ""
+
+#. Author URI of the plugin
+#: shd-translator.php
+msgid "https://shdigital.ch"
+msgstr ""
+
+#: includes/admin/class-admin.php:68
+#: includes/admin/views/header.php:21
+msgid "SHD Translator"
+msgstr "SHD Translator"
+
+#: includes/admin/class-admin.php:69
+#: includes/elementor/class-integration.php:54
+msgid "Translator"
+msgstr "Übersetzer"
+
+#: includes/admin/class-admin.php:76
+#: includes/admin/views/header.php:12
+msgid "Languages & Settings"
+msgstr "Sprachen & Einstellungen"
+
+#: includes/admin/class-admin.php:77
+#: includes/admin/views/header.php:13
+#: includes/admin/views/strings.php:46
+msgid "Translations"
+msgstr "Übersetzungen"
+
+#: includes/admin/class-admin.php:78
+#: includes/admin/views/header.php:14
+msgid "Tools"
+msgstr "Werkzeuge"
+
+#: includes/admin/class-admin.php:124
+#: includes/admin/views/settings.php:79
+msgid "Remove"
+msgstr "Entfernen"
+
+#: includes/admin/class-admin.php:125
+#: includes/admin/views/settings.php:71
+#: includes/admin/views/strings.php:82
+#: includes/class-frontend.php:351
+msgid "Original"
+msgstr "Original"
+
+#: includes/admin/class-admin.php:126
+#: includes/class-frontend.php:346
+msgid "Saved"
+msgstr "Gespeichert"
+
+#: includes/admin/class-admin.php:127
+msgid "Something went wrong"
+msgstr "Etwas ist schiefgelaufen"
+
+#: includes/admin/class-admin.php:128
+msgid "Delete these translations? This cannot be undone."
+msgstr "Diese Übersetzungen löschen? Das kann nicht rückgängig gemacht werden."
+
+#: includes/admin/class-admin.php:129
+msgid "Delete this translation?"
+msgstr "Diese Übersetzung löschen?"
+
+#: includes/admin/class-admin.php:130
+msgid "Testing…"
+msgstr "Wird getestet …"
+
+#: includes/admin/class-admin.php:131
+msgid "Working…"
+msgstr "Wird bearbeitet …"
+
+#: includes/admin/class-admin.php:132
+msgid "Done"
+msgstr "Fertig"
+
+#: includes/admin/class-admin.php:133
+msgid "Stopped"
+msgstr "Angehalten"
+
+#. translators: 1: number done, 2: total or remaining
+#: includes/admin/class-admin.php:135
+#, php-format
+msgid "%1$d of %2$d pages translated"
+msgstr "%1$d von %2$d Seiten übersetzt"
+
+#. translators: 1: number done, 2: total or remaining
+#: includes/admin/class-admin.php:137
+#, php-format
+msgid "%1$d translated, %2$d still waiting"
+msgstr "%1$d übersetzt, %2$d warten noch"
+
+#. translators: 1: number done, 2: total or remaining
+#: includes/admin/class-admin.php:139
+#, php-format
+msgid "%1$d strings translated in your browser, %2$d waiting"
+msgstr "%1$d Texte in Ihrem Browser übersetzt, %2$d warten"
+
+#. translators: %d: number of translations
+#: includes/admin/class-admin.php:141
+#, php-format
+msgid "%d translations imported"
+msgstr "%d Übersetzungen importiert"
+
+#. translators: %d: number of translations
+#: includes/admin/class-admin.php:143
+#, php-format
+msgid "%d translations deleted"
+msgstr "%d Übersetzungen gelöscht"
+
+#: includes/admin/class-admin.php:144
+msgid "Nothing is waiting for translation."
+msgstr "Es warten keine Texte auf eine Übersetzung."
+
+#: includes/admin/class-admin.php:145
+msgid "The translation service paused (rate limit). Try \"Translate with my browser\" below or wait a few minutes."
+msgstr "Der Übersetzungsdienst pausiert (Ratenlimit). Nutzen Sie unten „Mit meinem Browser übersetzen“ oder warten Sie ein paar Minuten."
+
+#: includes/admin/class-admin.php:146
+msgid "Changing the original language means existing translations no longer match. Continue?"
+msgstr "Wenn Sie die Originalsprache ändern, passen die vorhandenen Übersetzungen nicht mehr. Fortfahren?"
+
+#: includes/admin/class-admin.php:159
+msgid "Settings"
+msgstr "Einstellungen"
+
+#. translators: %s: plugin names
+#: includes/admin/class-admin.php:189
+#, php-format
+msgid "SHD Translator: %s is also active. Two translation plugins will fight over URLs and content — keep only one."
+msgstr "SHD Translator: %s ist ebenfalls aktiv. Zwei Übersetzungs-Plugins kommen sich bei URLs und Inhalten in die Quere – behalten Sie nur eines."
+
+#. translators: %s: permalinks URL
+#: includes/admin/class-admin.php:206
+#, php-format
+msgid "Language folders (/de/) need pretty permalinks. <a href=\"%s\">Choose a permalink structure</a> or switch the URL format to \"?lang=de\"."
+msgstr "Sprachordner (/fr/) benötigen sprechende Permalinks. <a href=\"%s\">Wählen Sie eine Permalink-Struktur</a> oder stellen Sie das URL-Format auf „?lang=fr“ um."
+
+#: includes/admin/class-admin.php:219
+#: includes/admin/class-admin.php:258
+msgid "Sorry, you are not allowed to do that."
+msgstr "Sie haben leider keine Berechtigung dafür."
+
+#: includes/admin/views/header.php:22
+msgid "Automatic AI translation for your whole website"
+msgstr "Automatische KI-Übersetzung für Ihre ganze Website"
+
+#: includes/admin/views/header.php:25
+msgid "Translator sections"
+msgstr "Bereiche des Übersetzers"
+
+#: includes/admin/views/settings.php:67
+msgid "Drag to reorder"
+msgstr "Zum Sortieren ziehen"
+
+#: includes/admin/views/settings.php:74
+#: includes/admin/views/settings.php:157
+msgid "Name in switcher"
+msgstr "Name im Umschalter"
+
+#: includes/admin/views/settings.php:75
+msgid "Short label"
+msgstr "Kurzbezeichnung"
+
+#: includes/admin/views/settings.php:76
+#: includes/admin/views/settings.php:159
+msgid "URL"
+msgstr "URL"
+
+#: includes/admin/views/settings.php:76
+msgid "no prefix"
+msgstr "kein Präfix"
+
+#: includes/admin/views/settings.php:77
+#: includes/admin/views/settings.php:160
+msgid "Locale"
+msgstr "Locale"
+
+#: includes/admin/views/settings.php:78
+#: includes/admin/views/settings.php:161
+msgid "Flag"
+msgstr "Flagge"
+
+#: includes/admin/views/settings.php:88
+msgid "Settings saved."
+msgstr "Einstellungen gespeichert."
+
+#: includes/admin/views/settings.php:93
+msgid "Your website is multilingual now"
+msgstr "Ihre Website ist jetzt mehrsprachig"
+
+#: includes/admin/views/settings.php:95
+msgid "Check the languages below (you can rename them, e.g. \"Deutsch (CH)\") and save."
+msgstr "Prüfen Sie unten die Sprachen (Sie können sie umbenennen, z. B. „Deutsch (CH)“) und speichern Sie."
+
+#: includes/admin/views/settings.php:96
+msgid "Open your header in Elementor and drag the \"Language Switcher\" widget into it."
+msgstr "Öffnen Sie Ihren Header in Elementor und ziehen Sie das Widget „Sprachumschalter“ hinein."
+
+#: includes/admin/views/settings.php:97
+msgid "Visit your site in another language — pages are translated automatically on the first visit. Use Tools → \"Translate the whole website\" to do all pages at once."
+msgstr "Besuchen Sie Ihre Website in einer anderen Sprache – Seiten werden beim ersten Aufruf automatisch übersetzt. Mit Werkzeuge → „Ganze Website übersetzen“ erledigen Sie alle Seiten auf einmal."
+
+#: includes/admin/views/settings.php:98
+msgid "For the most natural copy, choose \"Claude AI\" as the engine below."
+msgstr "Für möglichst natürliche Texte wählen Sie unten „Claude AI“ als Übersetzungsdienst."
+
+#: includes/admin/views/settings.php:106
+#: includes/admin/views/settings.php:138
+#: includes/elementor/class-switcher-widget.php:579
+msgid "Languages"
+msgstr "Sprachen"
+
+#: includes/admin/views/settings.php:110
+msgid "Translated texts"
+msgstr "Übersetzte Texte"
+
+#: includes/admin/views/settings.php:114
+#: includes/admin/views/strings.php:36
+msgid "Waiting"
+msgstr "Wartend"
+
+#: includes/admin/views/settings.php:121
+msgid "Paused for a few minutes (rate limit)"
+msgstr "Für einige Minuten pausiert (Ratenlimit)"
+
+#: includes/admin/views/settings.php:123
+msgid "Not configured – using the free fallback"
+msgstr "Nicht eingerichtet – der kostenlose Ersatz wird verwendet"
+
+#: includes/admin/views/settings.php:125
+#: includes/admin/views/settings.php:207
+msgid "Translation engine"
+msgstr "Übersetzungsdienst"
+
+#: includes/admin/views/settings.php:139
+msgid "The original language is the language your content is written in. All other languages are translated automatically and get their own URL, e.g. example.com/fr/."
+msgstr "Die Originalsprache ist die Sprache, in der Ihre Inhalte geschrieben sind. Alle anderen Sprachen werden automatisch übersetzt und erhalten eine eigene URL, z. B. example.com/fr/."
+
+#: includes/admin/views/settings.php:143
+msgid "Original language"
+msgstr "Originalsprache"
+
+#: includes/admin/views/settings.php:156
+#: includes/admin/views/strings.php:52
+#: includes/admin/views/strings.php:81
+#: includes/admin/views/tools.php:116
+#: includes/admin/views/tools.php:137
+msgid "Language"
+msgstr "Sprache"
+
+#: includes/admin/views/settings.php:158
+msgid "Short"
+msgstr "Kurz"
+
+#: includes/admin/views/settings.php:177
+msgid "Language to add"
+msgstr "Hinzuzufügende Sprache"
+
+#: includes/admin/views/settings.php:178
+msgid "+ Add a language…"
+msgstr "+ Sprache hinzufügen …"
+
+#: includes/admin/views/settings.php:183
+msgid "Use Swiss set (DE-CH, EN-UK, FR, IT)"
+msgstr "Schweizer Set verwenden (DE-CH, EN-UK, FR, IT)"
+
+#: includes/admin/views/settings.php:208
+msgid "Every text is translated once per language and then stored, so later page views cost nothing. You can correct any translation afterwards."
+msgstr "Jeder Text wird pro Sprache einmal übersetzt und gespeichert – spätere Seitenaufrufe kosten nichts. Jede Übersetzung lässt sich nachträglich korrigieren."
+
+#: includes/admin/views/settings.php:214
+msgid "Free · no key · instant"
+msgstr "Kostenlos · ohne Schlüssel · sofort"
+
+#: includes/admin/views/settings.php:214
+msgid "Works out of the box. Solid quality for most texts. Unofficial free service: Google may slow down very busy servers; translations then continue in the background."
+msgstr "Funktioniert sofort. Solide Qualität für die meisten Texte. Inoffizieller Gratisdienst: Google kann sehr aktive Server bremsen; die Übersetzung läuft dann im Hintergrund weiter."
+
+#: includes/admin/views/settings.php:215
+msgid "Best quality · recommended"
+msgstr "Beste Qualität · empfohlen"
+
+#: includes/admin/views/settings.php:215
+msgid "Natural, on-brand copy written like a native copywriter, with the whole page as context and your tone instructions. Needs an Anthropic API key (pay per use, each text only once)."
+msgstr "Natürliche, markengerechte Texte wie von einer muttersprachlichen Texterin – mit der ganzen Seite als Kontext und Ihren Tonalitäts-Vorgaben. Benötigt einen Anthropic-API-Schlüssel (Abrechnung nach Nutzung, jeder Text nur einmal)."
+
+#: includes/admin/views/settings.php:216
+msgid "Very good · free key available"
+msgstr "Sehr gut · kostenloser Schlüssel erhältlich"
+
+#: includes/admin/views/settings.php:216
+msgid "Excellent for European languages. The DeepL API Free plan includes 500,000 characters per month."
+msgstr "Ausgezeichnet für europäische Sprachen. Der Tarif DeepL API Free enthält 500.000 Zeichen pro Monat."
+
+#: includes/admin/views/settings.php:217
+msgid "AI · bring your own"
+msgstr "KI · eigener Anbieter"
+
+#: includes/admin/views/settings.php:217
+msgid "Any OpenAI-compatible API: OpenAI, OpenRouter, Mistral, or a local Ollama / LM Studio server (no key needed locally)."
+msgstr "Jede OpenAI-kompatible API: OpenAI, OpenRouter, Mistral oder ein lokaler Ollama-/LM-Studio-Server (lokal ohne Schlüssel)."
+
+#: includes/admin/views/settings.php:218
+msgid "Open source · self-hosted"
+msgstr "Open Source · selbst gehostet"
+
+#: includes/admin/views/settings.php:218
+msgid "Your own LibreTranslate server. Nothing leaves your infrastructure."
+msgstr "Ihr eigener LibreTranslate-Server. Nichts verlässt Ihre Infrastruktur."
+
+#: includes/admin/views/settings.php:219
+msgid "Free · small daily quota"
+msgstr "Kostenlos · kleines Tageskontingent"
+
+#: includes/admin/views/settings.php:219
+msgid "Free translation memory service. Adding an e-mail address raises the quota to 50,000 characters per day."
+msgstr "Kostenloser Translation-Memory-Dienst. Mit einer E-Mail-Adresse steigt das Kontingent auf 50.000 Zeichen pro Tag."
+
+#: includes/admin/views/settings.php:238
+msgid "Anthropic API key"
+msgstr "Anthropic-API-Schlüssel"
+
+#: includes/admin/views/settings.php:240
+msgid "Create one at <a href=\"https://console.anthropic.com/settings/keys\" target=\"_blank\" rel=\"noopener\">console.anthropic.com</a>."
+msgstr "Erstellen Sie einen unter <a href=\"https://console.anthropic.com/settings/keys\" target=\"_blank\" rel=\"noopener\">console.anthropic.com</a>."
+
+#: includes/admin/views/settings.php:243
+#: includes/admin/views/settings.php:280
+msgid "Model"
+msgstr "Modell"
+
+#: includes/admin/views/settings.php:250
+msgid "claude-opus-5 gives the best copy; claude-sonnet-5 or claude-haiku-4-5 are faster and cheaper."
+msgstr "claude-opus-5 liefert die besten Texte; claude-sonnet-5 oder claude-haiku-4-5 sind schneller und günstiger."
+
+#: includes/admin/views/settings.php:256
+msgid "DeepL API key"
+msgstr "DeepL-API-Schlüssel"
+
+#: includes/admin/views/settings.php:258
+msgid "Free keys end with \":fx\" and are detected automatically."
+msgstr "Kostenlose Schlüssel enden auf „:fx“ und werden automatisch erkannt."
+
+#: includes/admin/views/settings.php:261
+msgid "Formality"
+msgstr "Anrede"
+
+#: includes/admin/views/settings.php:263
+msgid "Default"
+msgstr "Standard"
+
+#: includes/admin/views/settings.php:264
+msgid "Formal (Sie / vous)"
+msgstr "Förmlich (Sie / vous)"
+
+#: includes/admin/views/settings.php:265
+msgid "Informal (du / tu)"
+msgstr "Informell (du / tu)"
+
+#: includes/admin/views/settings.php:272
+msgid "API base URL"
+msgstr "API-Basis-URL"
+
+#: includes/admin/views/settings.php:276
+msgid "API key"
+msgstr "API-Schlüssel"
+
+#: includes/admin/views/settings.php:287
+msgid "Server URL"
+msgstr "Server-URL"
+
+#: includes/admin/views/settings.php:291
+msgid "API key (optional)"
+msgstr "API-Schlüssel (optional)"
+
+#: includes/admin/views/settings.php:298
+msgid "Contact e-mail (optional)"
+msgstr "Kontakt-E-Mail (optional)"
+
+#: includes/admin/views/settings.php:304
+msgid "Test the saved engine"
+msgstr "Gespeicherten Dienst testen"
+
+#: includes/admin/views/settings.php:308
+msgid "Fall back to the free engines when the selected one fails"
+msgstr "Auf die kostenlosen Dienste ausweichen, wenn der gewählte ausfällt"
+
+#: includes/admin/views/settings.php:308
+msgid "Keeps the site translating if a key runs out or a service is down."
+msgstr "So wird weiter übersetzt, wenn ein Guthaben aufgebraucht oder ein Dienst gestört ist."
+
+#: includes/admin/views/settings.php:311
+msgid "About your website & tone (used by AI engines and DeepL)"
+msgstr "Über Ihre Website & Tonalität (für KI-Dienste und DeepL)"
+
+#: includes/admin/views/settings.php:312
+msgid "e.g. Swiss lab offering at-home health tests. Friendly, reassuring, formal address (Sie / vous / Lei). Keep medical terms precise."
+msgstr "z. B. Schweizer Labor für Gesundheitstests zu Hause. Freundlich, beruhigend, förmliche Anrede (Sie / vous / Lei). Medizinische Begriffe präzise halten."
+
+#: includes/admin/views/settings.php:315
+msgid "Never translate these words"
+msgstr "Diese Wörter nie übersetzen"
+
+#: includes/admin/views/settings.php:316
+msgid "Brand names, product names – one per line\nSH Digital\nFoodPrint"
+msgstr "Marken- und Produktnamen – einer pro Zeile\nSH Digital\nFoodPrint"
+
+#: includes/admin/views/settings.php:322
+msgid "Language switcher"
+msgstr "Sprachumschalter"
+
+#: includes/admin/views/settings.php:323
+msgid "In Elementor, search for the \"Language Switcher\" widget (category \"Translator\") and drop it into your header. It can be styled completely in the Style tab."
+msgstr "Suchen Sie in Elementor das Widget „Sprachumschalter“ (Kategorie „Übersetzer“) und ziehen Sie es in Ihren Header. Im Tab „Stil“ lässt es sich vollständig gestalten."
+
+#: includes/admin/views/settings.php:331
+msgid "Shortcode (Gutenberg, classic themes, other builders)"
+msgstr "Shortcode (Gutenberg, klassische Themes, andere Builder)"
+
+#: includes/admin/views/settings.php:332
+msgid "Copy"
+msgstr "Kopieren"
+
+#: includes/admin/views/settings.php:333
+msgid "Options: layout=\"inline\", display=\"name|code|flag_code|flag_name|flag\", icon=\"no\", arrow=\"no\", open_on=\"hover\", align=\"left\"."
+msgstr "Optionen: layout=\"inline\", display=\"name|code|flag_code|flag_name|flag\", icon=\"no\", arrow=\"no\", open_on=\"hover\", align=\"left\"."
+
+#: includes/admin/views/settings.php:336
+msgid "Button shows (shortcode, menu, floating)"
+msgstr "Schaltfläche zeigt (Shortcode, Menü, schwebend)"
+
+#: includes/admin/views/settings.php:340
+#: includes/elementor/class-switcher-widget.php:126
+msgid "Code (EN)"
+msgstr "Kürzel (EN)"
+
+#: includes/admin/views/settings.php:341
+msgid "Name"
+msgstr "Name"
+
+#: includes/admin/views/settings.php:342
+#: includes/elementor/class-switcher-widget.php:128
+msgid "Flag + code"
+msgstr "Flagge + Kürzel"
+
+#: includes/admin/views/settings.php:343
+#: includes/elementor/class-switcher-widget.php:129
+msgid "Flag + name"
+msgstr "Flagge + Name"
+
+#: includes/admin/views/settings.php:344
+#: includes/elementor/class-switcher-widget.php:130
+msgid "Flag only"
+msgstr "Nur Flagge"
+
+#: includes/admin/views/settings.php:352
+msgid "Add to a theme menu"
+msgstr "Zu einem Theme-Menü hinzufügen"
+
+#: includes/admin/views/settings.php:354
+msgid "— none —"
+msgstr "— keines —"
+
+#: includes/admin/views/settings.php:360
+msgid "Show a floating switcher on every page"
+msgstr "Schwebenden Umschalter auf jeder Seite anzeigen"
+
+#: includes/admin/views/settings.php:362
+msgid "Position"
+msgstr "Position"
+
+#: includes/admin/views/settings.php:365
+msgid "Bottom right"
+msgstr "Unten rechts"
+
+#: includes/admin/views/settings.php:366
+msgid "Bottom left"
+msgstr "Unten links"
+
+#: includes/admin/views/settings.php:367
+msgid "Top right"
+msgstr "Oben rechts"
+
+#: includes/admin/views/settings.php:368
+msgid "Top left"
+msgstr "Oben links"
+
+#: includes/admin/views/settings.php:379
+msgid "What gets translated"
+msgstr "Was übersetzt wird"
+
+#: includes/admin/views/settings.php:382
+msgid "Translate new and changed content automatically"
+msgstr "Neue und geänderte Inhalte automatisch übersetzen"
+
+#: includes/admin/views/settings.php:382
+msgid "Turn off to translate only on demand (Tools) or by hand."
+msgstr "Ausschalten, um nur auf Anfrage (Werkzeuge) oder von Hand zu übersetzen."
+
+#: includes/admin/views/settings.php:383
+msgid "Page titles, meta descriptions and social media tags"
+msgstr "Seitentitel, Meta-Beschreibungen und Social-Media-Tags"
+
+#: includes/admin/views/settings.php:384
+msgid "Image alt texts, tooltips, form placeholders and buttons"
+msgstr "Bild-Alternativtexte, Tooltips, Formular-Platzhalter und Schaltflächen"
+
+#: includes/admin/views/settings.php:385
+msgid "Content loaded later by JavaScript"
+msgstr "Nachträglich per JavaScript geladene Inhalte"
+
+#: includes/admin/views/settings.php:385
+msgid "Popups, AJAX filters and pagination, form success messages, cart fragments."
+msgstr "Popups, AJAX-Filter und -Paginierung, Formular-Bestätigungen, Warenkorb-Fragmente."
+
+#: includes/admin/views/settings.php:386
+msgid "Let visitors search in their own language"
+msgstr "Besucher in ihrer eigenen Sprache suchen lassen"
+
+#: includes/admin/views/settings.php:387
+msgid "Use WordPress language files on translated pages"
+msgstr "WordPress-Sprachdateien auf übersetzten Seiten verwenden"
+
+#: includes/admin/views/settings.php:387
+msgid "Dates, theme and plugin texts use the official translations when they are installed (Tools → install language packs)."
+msgstr "Datumsangaben sowie Theme- und Plugin-Texte nutzen die offiziellen Übersetzungen, sofern installiert (Werkzeuge → Sprachpakete installieren)."
+
+#: includes/admin/views/settings.php:388
+msgid "Swiss German: always write \"ss\" instead of \"ß\""
+msgstr "Schweizerdeutsch: immer „ss“ statt „ß“ schreiben"
+
+#: includes/admin/views/settings.php:391
+msgid "Never translate these elements (CSS selectors)"
+msgstr "Diese Elemente nie übersetzen (CSS-Selektoren)"
+
+#: includes/admin/views/settings.php:393
+msgid "Tip: in Elementor, add the CSS class \"notranslate\" to any widget (Advanced → CSS Classes) to keep it untranslated."
+msgstr "Tipp: Geben Sie einem Elementor-Widget die CSS-Klasse „notranslate“ (Erweitert → CSS-Klassen), damit es unübersetzt bleibt."
+
+#: includes/admin/views/settings.php:396
+msgid "Pages that stay in the original language"
+msgstr "Seiten, die in der Originalsprache bleiben"
+
+#: includes/admin/views/settings.php:403
+msgid "URLs & SEO"
+msgstr "URLs & SEO"
+
+#: includes/admin/views/settings.php:406
+msgid "URL format"
+msgstr "URL-Format"
+
+#: includes/admin/views/settings.php:413
+msgid "Tell search engines about the other languages (hreflang)"
+msgstr "Suchmaschinen über die anderen Sprachen informieren (hreflang)"
+
+#: includes/admin/views/settings.php:413
+msgid "Each language is indexed separately by Google, Bing & co."
+msgstr "Jede Sprache wird von Google, Bing & Co. separat indexiert."
+
+#: includes/admin/views/settings.php:414
+msgid "Send first-time visitors to their browser language"
+msgstr "Neue Besucher zu ihrer Browsersprache leiten"
+
+#: includes/admin/views/settings.php:414
+msgid "Only once per visitor, never for search engine bots."
+msgstr "Nur einmal pro Besucher, nie für Suchmaschinen-Bots."
+
+#: includes/admin/views/settings.php:417
+msgid "Seconds a page view may spend on new translations"
+msgstr "Sekunden, die ein Seitenaufruf für neue Übersetzungen aufwenden darf"
+
+#: includes/admin/views/settings.php:419
+msgid "Anything not finished in time is shown in the original language and completed in the background."
+msgstr "Was nicht rechtzeitig fertig wird, erscheint vorerst in der Originalsprache und wird im Hintergrund abgeschlossen."
+
+#: includes/admin/views/settings.php:421
+msgid "Delete all translations and settings when the plugin is deleted"
+msgstr "Alle Übersetzungen und Einstellungen beim Löschen des Plugins entfernen"
+
+#: includes/admin/views/settings.php:425
+msgid "Save changes"
+msgstr "Änderungen speichern"
+
+#: includes/admin/views/strings.php:37
+msgid "Automatic"
+msgstr "Automatisch"
+
+#: includes/admin/views/strings.php:38
+msgid "Edited"
+msgstr "Bearbeitet"
+
+#: includes/admin/views/strings.php:47
+msgid "Every text of your site with its translation. Edit a translation and it will never be overwritten automatically. Tip: open any page and use \"Translator → Edit translations of this page\" in the admin bar to edit visually."
+msgstr "Alle Texte Ihrer Website mit ihrer Übersetzung. Bearbeitete Übersetzungen werden nie automatisch überschrieben. Tipp: Öffnen Sie eine Seite und wählen Sie in der Werkzeugleiste „Übersetzer → Übersetzungen dieser Seite bearbeiten“, um visuell zu bearbeiten."
+
+#: includes/admin/views/strings.php:53
+#: includes/admin/views/tools.php:117
+#: includes/admin/views/tools.php:138
+msgid "All languages"
+msgstr "Alle Sprachen"
+
+#: includes/admin/views/strings.php:58
+msgid "Status"
+msgstr "Status"
+
+#: includes/admin/views/strings.php:59
+msgid "Any status"
+msgstr "Jeder Status"
+
+#: includes/admin/views/strings.php:64
+msgid "Search text or page URL…"
+msgstr "Text oder Seiten-URL suchen …"
+
+#: includes/admin/views/strings.php:65
+msgid "Filter"
+msgstr "Filtern"
+
+#. translators: %s: number of strings
+#: includes/admin/views/strings.php:69
+#, php-format
+msgid "%s text"
+msgid_plural "%s texts"
+msgstr[0] "%s Text"
+msgstr[1] "%s Texte"
+
+#: includes/admin/views/strings.php:75
+msgid "No translations yet. Visit your website in another language, or run Tools → \"Translate the whole website\"."
+msgstr "Noch keine Übersetzungen. Besuchen Sie Ihre Website in einer anderen Sprache oder starten Sie Werkzeuge → „Ganze Website übersetzen“."
+
+#: includes/admin/views/strings.php:77
+msgid "Tags like <x1>…</x1> stand for links or bold text – keep them around the matching words."
+msgstr "Tags wie <x1>…</x1> stehen für Links oder fetten Text – behalten Sie sie um die passenden Wörter herum."
+
+#: includes/admin/views/strings.php:83
+#: includes/admin/views/strings.php:109
+msgid "Translation"
+msgstr "Übersetzung"
+
+#: includes/admin/views/strings.php:109
+msgid "Translated piece by piece (formatting could not be kept)"
+msgstr "Stückweise übersetzt (Formatierung konnte nicht erhalten bleiben)"
+
+#: includes/admin/views/strings.php:109
+msgid "Not translated yet"
+msgstr "Noch nicht übersetzt"
+
+#: includes/admin/views/strings.php:113
+#: includes/class-frontend.php:345
+msgid "Save"
+msgstr "Speichern"
+
+#: includes/admin/views/strings.php:114
+msgid "Translate again automatically"
+msgstr "Automatisch neu übersetzen"
+
+#: includes/admin/views/strings.php:114
+msgid "Translate again"
+msgstr "Neu übersetzen"
+
+#: includes/admin/views/strings.php:115
+#: includes/admin/views/tools.php:148
+msgid "Delete"
+msgstr "Löschen"
+
+#. translators: %d: number of language packs
+#: includes/admin/views/tools.php:33
+#, php-format
+msgid "%d WordPress language packs installed."
+msgstr "%d WordPress-Sprachpakete installiert."
+
+#: includes/admin/views/tools.php:41
+msgid "Translate the whole website"
+msgstr "Ganze Website übersetzen"
+
+#: includes/admin/views/tools.php:42
+msgid "Opens every published page in every language in the background, so all texts are translated before your visitors arrive. Keep this tab open while it runs."
+msgstr "Ruft jede veröffentlichte Seite in jeder Sprache im Hintergrund auf, damit alle Texte übersetzt sind, bevor Besucher kommen. Lassen Sie diesen Tab währenddessen geöffnet."
+
+#: includes/admin/views/tools.php:45
+msgid "Start translating"
+msgstr "Übersetzung starten"
+
+#: includes/admin/views/tools.php:46
+msgid "Stop"
+msgstr "Stopp"
+
+#: includes/admin/views/tools.php:54
+msgid "Waiting texts"
+msgstr "Wartende Texte"
+
+#: includes/admin/views/tools.php:55
+msgid "Texts that could not be translated during a page view are finished in the background automatically. You can also do it right now."
+msgstr "Texte, die während eines Seitenaufrufs nicht übersetzt werden konnten, werden automatisch im Hintergrund fertiggestellt. Sie können das auch sofort erledigen."
+
+#: includes/admin/views/tools.php:57
+msgid "waiting"
+msgstr "wartend"
+
+#: includes/admin/views/tools.php:59
+msgid "Translate now"
+msgstr "Jetzt übersetzen"
+
+#: includes/admin/views/tools.php:63
+#: includes/admin/views/tools.php:66
+msgid "Translate with my browser"
+msgstr "Mit meinem Browser übersetzen"
+
+#: includes/admin/views/tools.php:64
+msgid "If the free Google service limits your web server, your own browser can do the work instead: it translates the waiting texts and saves them to your site. No key needed."
+msgstr "Falls der kostenlose Google-Dienst Ihren Webserver bremst, übernimmt Ihr eigener Browser: Er übersetzt die wartenden Texte und speichert sie auf Ihrer Website. Kein Schlüssel nötig."
+
+#: includes/admin/views/tools.php:73
+msgid "Engine status"
+msgstr "Status der Dienste"
+
+#. translators: %s: human time difference
+#: includes/admin/views/tools.php:82
+#, php-format
+msgid "paused for %s:"
+msgstr "pausiert für %s:"
+
+#: includes/admin/views/tools.php:88
+msgid "Resume now"
+msgstr "Jetzt fortsetzen"
+
+#: includes/admin/views/tools.php:90
+msgid "All engines are available."
+msgstr "Alle Dienste sind verfügbar."
+
+#. translators: 1: engine id, 2: time ago, 3: message
+#: includes/admin/views/tools.php:96
+#, php-format
+msgid "Last error (%1$s, %2$s ago): %3$s"
+msgstr "Letzter Fehler (%1$s, vor %2$s): %3$s"
+
+#: includes/admin/views/tools.php:101
+msgid "WordPress language packs"
+msgstr "WordPress-Sprachpakete"
+
+#: includes/admin/views/tools.php:102
+msgid "Installs the official WordPress translations for your languages, so dates and texts from WordPress itself are translated natively."
+msgstr "Installiert die offiziellen WordPress-Übersetzungen für Ihre Sprachen, damit Datumsangaben und Texte von WordPress selbst korrekt übersetzt sind."
+
+#: includes/admin/views/tools.php:106
+msgid "Install missing language packs"
+msgstr "Fehlende Sprachpakete installieren"
+
+#: includes/admin/views/tools.php:112
+msgid "Export & import"
+msgstr "Export & Import"
+
+#: includes/admin/views/tools.php:113
+msgid "Back up your translations, move them to a staging or live site, or let a translator review them."
+msgstr "Sichern Sie Ihre Übersetzungen, übertragen Sie sie auf eine Staging- oder Live-Website oder lassen Sie sie von einer Übersetzerin prüfen."
+
+#: includes/admin/views/tools.php:122
+msgid "Download JSON"
+msgstr "JSON herunterladen"
+
+#: includes/admin/views/tools.php:126
+msgid "Import"
+msgstr "Importieren"
+
+#: includes/admin/views/tools.php:133
+msgid "Delete translations"
+msgstr "Übersetzungen löschen"
+
+#: includes/admin/views/tools.php:134
+msgid "For example after switching to a better engine: delete the automatic translations and they are created again with the new engine. Edited translations are kept unless you choose \"everything\"."
+msgstr "Zum Beispiel nach dem Wechsel zu einem besseren Dienst: Löschen Sie die automatischen Übersetzungen, dann werden sie mit dem neuen Dienst neu erstellt. Bearbeitete Übersetzungen bleiben erhalten, außer Sie wählen „alles“."
+
+#: includes/admin/views/tools.php:143
+msgid "What to delete"
+msgstr "Was gelöscht wird"
+
+#: includes/admin/views/tools.php:144
+msgid "Automatic translations only"
+msgstr "Nur automatische Übersetzungen"
+
+#: includes/admin/views/tools.php:145
+msgid "Waiting texts only"
+msgstr "Nur wartende Texte"
+
+#: includes/admin/views/tools.php:146
+msgid "Everything, including edited"
+msgstr "Alles, auch bearbeitete"
+
+#: includes/class-frontend.php:343
+msgid "Translate this page"
+msgstr "Diese Seite übersetzen"
+
+#: includes/class-frontend.php:344
+msgid "Search strings…"
+msgstr "Texte suchen …"
+
+#: includes/class-frontend.php:347
+msgid "Could not save"
+msgstr "Speichern fehlgeschlagen"
+
+#: includes/class-frontend.php:348
+msgid "Pick text on the page"
+msgstr "Text auf der Seite wählen"
+
+#: includes/class-frontend.php:349
+msgid "Close editor"
+msgstr "Editor schließen"
+
+#: includes/class-frontend.php:350
+msgid "not translated yet"
+msgstr "noch nicht übersetzt"
+
+#: includes/class-frontend.php:352
+msgid "Keep tags like <x1>…</x1> around the matching words."
+msgstr "Tags wie <x1>…</x1> um die passenden Wörter herum behalten."
+
+#. translators: %d: number of strings
+#: includes/class-frontend.php:354
+#, php-format
+msgid "%d strings on this page"
+msgstr "%d Texte auf dieser Seite"
+
+#: includes/class-frontend.php:401
+msgid "Edit translations of this page"
+msgstr "Übersetzungen dieser Seite bearbeiten"
+
+#. translators: %s: language name
+#: includes/class-frontend.php:412
+#, php-format
+msgid "View in %s"
+msgstr "Auf %s ansehen"
+
+#: includes/class-rest.php:214
+msgid "The translation is empty."
+msgstr "Die Übersetzung ist leer."
+
+#: includes/class-rest.php:217
+msgid "Keep every tag like <x1>…</x1> of the original exactly once."
+msgstr "Übernehmen Sie jeden Tag wie <x1>…</x1> des Originals genau einmal."
+
+#: includes/class-rest.php:302
+msgid "Translation failed."
+msgstr "Übersetzung fehlgeschlagen."
+
+#. translators: %s: current language
+#: includes/class-switcher.php:202
+#, php-format
+msgid "Language: %s. Choose another language"
+msgstr "Sprache: %s. Andere Sprache wählen"
+
+#: includes/class-translator.php:471
+msgid "Unknown engine."
+msgstr "Unbekannter Dienst."
+
+#: includes/class-translator.php:474
+msgid "This engine is not configured yet (API key or URL missing)."
+msgstr "Dieser Dienst ist noch nicht eingerichtet (API-Schlüssel oder URL fehlt)."
+
+#: includes/class-translator.php:494
+msgid "No answer from the engine."
+msgstr "Keine Antwort vom Dienst."
+
+#: includes/elementor/class-switcher-widget.php:36
+#: includes/elementor/class-switcher-widget.php:91
+msgid "Language Switcher"
+msgstr "Sprachumschalter"
+
+#. translators: %s: settings URL
+#: includes/elementor/class-switcher-widget.php:104
+#, php-format
+msgid "Add at least one language under <a href=\"%s\" target=\"_blank\">Translator → Languages</a>."
+msgstr "Fügen Sie unter <a href=\"%s\" target=\"_blank\">Übersetzer → Sprachen</a> mindestens eine Sprache hinzu."
+
+#: includes/elementor/class-switcher-widget.php:115
+msgid "Layout"
+msgstr "Layout"
+
+#: includes/elementor/class-switcher-widget.php:119
+#: includes/elementor/class-switcher-widget.php:486
+msgid "Dropdown"
+msgstr "Dropdown"
+
+#: includes/elementor/class-switcher-widget.php:120
+msgid "Inline list"
+msgstr "Liste nebeneinander"
+
+#: includes/elementor/class-switcher-widget.php:127
+msgid "Name (English (UK))"
+msgstr "Name (English (UK))"
+
+#: includes/elementor/class-switcher-widget.php:136
+msgid "Button shows"
+msgstr "Schaltfläche zeigt"
+
+#: includes/elementor/class-switcher-widget.php:147
+msgid "List shows"
+msgstr "Liste zeigt"
+
+#: includes/elementor/class-switcher-widget.php:157
+msgid "Globe icon"
+msgstr "Globus-Symbol"
+
+#: includes/elementor/class-switcher-widget.php:168
+msgid "Custom icon"
+msgstr "Eigenes Symbol"
+
+#: includes/elementor/class-switcher-widget.php:172
+msgid "Leave empty for the built-in globe."
+msgstr "Leer lassen für den eingebauten Globus."
+
+#: includes/elementor/class-switcher-widget.php:183
+msgid "Arrow"
+msgstr "Pfeil"
+
+#: includes/elementor/class-switcher-widget.php:194
+msgid "Current language in list"
+msgstr "Aktuelle Sprache in der Liste"
+
+#: includes/elementor/class-switcher-widget.php:205
+msgid "Open on"
+msgstr "Öffnen bei"
+
+#: includes/elementor/class-switcher-widget.php:209
+msgid "Click"
+msgstr "Klick"
+
+#: includes/elementor/class-switcher-widget.php:210
+#: includes/elementor/class-switcher-widget.php:343
+msgid "Hover"
+msgstr "Hover"
+
+#: includes/elementor/class-switcher-widget.php:219
+msgid "Dropdown position"
+msgstr "Position des Dropdowns"
+
+#: includes/elementor/class-switcher-widget.php:225
+#: includes/elementor/class-switcher-widget.php:272
+msgid "Left"
+msgstr "Links"
+
+#: includes/elementor/class-switcher-widget.php:229
+#: includes/elementor/class-switcher-widget.php:276
+msgid "Center"
+msgstr "Mitte"
+
+#: includes/elementor/class-switcher-widget.php:233
+#: includes/elementor/class-switcher-widget.php:280
+msgid "Right"
+msgstr "Rechts"
+
+#: includes/elementor/class-switcher-widget.php:244
+msgid "Open towards"
+msgstr "Öffnen nach"
+
+#: includes/elementor/class-switcher-widget.php:248
+msgid "Down"
+msgstr "Unten"
+
+#: includes/elementor/class-switcher-widget.php:249
+msgid "Up"
+msgstr "Oben"
+
+#: includes/elementor/class-switcher-widget.php:258
+msgid "Separator"
+msgstr "Trennzeichen"
+
+#: includes/elementor/class-switcher-widget.php:268
+msgid "Alignment"
+msgstr "Ausrichtung"
+
+#: includes/elementor/class-switcher-widget.php:300
+msgid "Button"
+msgstr "Schaltfläche"
+
+#: includes/elementor/class-switcher-widget.php:316
+#: includes/elementor/class-switcher-widget.php:636
+msgid "Normal"
+msgstr "Normal"
+
+#: includes/elementor/class-switcher-widget.php:320
+#: includes/elementor/class-switcher-widget.php:347
+#: includes/elementor/class-switcher-widget.php:595
+msgid "Text color"
+msgstr "Textfarbe"
+
+#: includes/elementor/class-switcher-widget.php:328
+#: includes/elementor/class-switcher-widget.php:355
+#: includes/elementor/class-switcher-widget.php:495
+msgid "Background"
+msgstr "Hintergrund"
+
+#: includes/elementor/class-switcher-widget.php:336
+#: includes/elementor/class-switcher-widget.php:363
+msgid "Border color"
+msgstr "Rahmenfarbe"
+
+#: includes/elementor/class-switcher-widget.php:374
+msgid "Border width"
+msgstr "Rahmenbreite"
+
+#: includes/elementor/class-switcher-widget.php:391
+#: includes/elementor/class-switcher-widget.php:512
+#: includes/elementor/class-switcher-widget.php:660
+msgid "Border radius"
+msgstr "Eckenradius"
+
+#: includes/elementor/class-switcher-widget.php:401
+#: includes/elementor/class-switcher-widget.php:530
+#: includes/elementor/class-switcher-widget.php:649
+msgid "Padding"
+msgstr "Innenabstand"
+
+#: includes/elementor/class-switcher-widget.php:419
+msgid "Spacing"
+msgstr "Abstand"
+
+#: includes/elementor/class-switcher-widget.php:435
+msgid "Icon size"
+msgstr "Symbolgröße"
+
+#: includes/elementor/class-switcher-widget.php:451
+msgid "Icon color"
+msgstr "Symbolfarbe"
+
+#: includes/elementor/class-switcher-widget.php:463
+msgid "Arrow size"
+msgstr "Pfeilgröße"
+
+#: includes/elementor/class-switcher-widget.php:540
+msgid "Min width"
+msgstr "Mindestbreite"
+
+#: includes/elementor/class-switcher-widget.php:556
+msgid "Distance"
+msgstr "Abstand zur Schaltfläche"
+
+#: includes/elementor/class-switcher-widget.php:604
+msgid "Hover text color"
+msgstr "Textfarbe bei Hover"
+
+#: includes/elementor/class-switcher-widget.php:613
+msgid "Hover background"
+msgstr "Hintergrund bei Hover"
+
+#: includes/elementor/class-switcher-widget.php:622
+msgid "Current language color"
+msgstr "Farbe der aktuellen Sprache"
+
+#: includes/elementor/class-switcher-widget.php:631
+msgid "Current language weight"
+msgstr "Schriftstärke der aktuellen Sprache"
+
+#: includes/elementor/class-switcher-widget.php:635
+msgid "Default (bold)"
+msgstr "Standard (fett)"
+
+#: includes/elementor/class-switcher-widget.php:676
+msgid "Flag width"
+msgstr "Flaggenbreite"
+
+#: includes/elementor/class-switcher-widget.php:722
+msgid "Language switcher: add languages under Translator → Languages."
+msgstr "Sprachumschalter: Fügen Sie Sprachen unter Übersetzer → Sprachen hinzu."
+
+#. translators: %s: engine
+#: includes/engines/class-ai-engine.php:163
+#, php-format
+msgid "%s returned an incomplete answer."
+msgstr "%s hat eine unvollständige Antwort geliefert."
+
+#: includes/engines/class-anthropic.php:46
+msgid "Claude AI (Anthropic)"
+msgstr "Claude AI (Anthropic)"
+
+#: includes/engines/class-anthropic.php:124
+msgid "Claude is temporarily overloaded."
+msgstr "Claude ist vorübergehend überlastet."
+
+#: includes/engines/class-anthropic.php:131
+msgid "Claude declined to translate this batch."
+msgstr "Claude hat die Übersetzung dieses Pakets abgelehnt."
+
+#: includes/engines/class-anthropic.php:134
+msgid "Claude answer was cut off (batch too large)."
+msgstr "Die Antwort von Claude wurde abgeschnitten (Paket zu groß)."
+
+#. translators: 1: engine name, 2: HTTP status, 3: error message
+#: includes/engines/class-base-engine.php:351
+#, php-format
+msgid "%1$s returned HTTP %2$d: %3$s"
+msgstr "%1$s antwortete mit HTTP %2$d: %3$s"
+
+#: includes/engines/class-deepl.php:27
+msgid "DeepL"
+msgstr "DeepL"
+
+#: includes/engines/class-google.php:35
+msgid "Google Translate (free, no key)"
+msgstr "Google Übersetzer (kostenlos, ohne Schlüssel)"
+
+#: includes/engines/class-google.php:89
+msgid "Google temporarily rate-limited this server. Translations continue in the background, or use \"Translate with my browser\" under Tools."
+msgstr "Google hat diesen Server vorübergehend gebremst. Die Übersetzung läuft im Hintergrund weiter – oder nutzen Sie „Mit meinem Browser übersetzen“ unter Werkzeuge."
+
+#: includes/engines/class-google.php:97
+msgid "Unexpected response from Google Translate."
+msgstr "Unerwartete Antwort vom Google Übersetzer."
+
+#: includes/engines/class-libretranslate.php:27
+msgid "LibreTranslate (self-hosted)"
+msgstr "LibreTranslate (selbst gehostet)"
+
+#: includes/engines/class-mymemory.php:27
+msgid "MyMemory (free, no key)"
+msgstr "MyMemory (kostenlos, ohne Schlüssel)"
+
+#: includes/engines/class-mymemory.php:102
+msgid "MyMemory daily quota reached."
+msgstr "Tageskontingent von MyMemory erreicht."
+
+#: includes/engines/class-openai.php:27
+msgid "OpenAI-compatible API"
+msgstr "OpenAI-kompatible API"
