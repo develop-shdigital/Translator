@@ -44,7 +44,7 @@ class Queue {
 	 */
 	public function check_version() {
 		if ( ! is_admin() && get_option( 'shdt_db_version' ) !== SHDT_DB_VERSION ) {
-			$this->schedule( 10 );
+			$this->schedule( 10, true );
 		}
 	}
 
