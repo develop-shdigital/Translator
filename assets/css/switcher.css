@@ -1,0 +1,350 @@
+/* SHD Translator – language switcher */
+.shdt-switcher {
+	--shdt-toggle-bg: #fff;
+	--shdt-toggle-color: #1f2320;
+	--shdt-toggle-border: #e4e5df;
+	--shdt-toggle-hover-border: #cfd1c8;
+	--shdt-toggle-radius: 999px;
+	--shdt-menu-bg: #fff;
+	--shdt-menu-border: #ecece7;
+	--shdt-menu-radius: 14px;
+	--shdt-menu-shadow: 0 14px 34px rgba(24, 28, 20, .12), 0 2px 6px rgba(24, 28, 20, .06);
+	--shdt-item-color: #1f2320;
+	--shdt-item-hover-bg: #f3f4ef;
+	--shdt-item-hover-color: var(--shdt-item-color);
+	--shdt-active-color: #4b5e3c;
+	--shdt-offset: 8px;
+	position: relative;
+	display: inline-flex;
+	vertical-align: middle;
+	font-family: inherit;
+	line-height: 1.2;
+}
+
+.shdt-switcher ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.shdt-switcher li {
+	margin: 0;
+	padding: 0;
+}
+
+.shdt-switcher li::before,
+.shdt-switcher li::marker {
+	content: none;
+}
+
+/* Toggle (pill) */
+.shdt-switcher .shdt-switcher__toggle {
+	-webkit-appearance: none;
+	appearance: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0;
+	min-height: 0;
+	padding: 8px 14px;
+	background: var(--shdt-toggle-bg);
+	color: var(--shdt-toggle-color);
+	border: 1px solid var(--shdt-toggle-border);
+	border-radius: var(--shdt-toggle-radius);
+	box-shadow: none;
+	font: inherit;
+	font-size: 15px;
+	font-weight: 700;
+	letter-spacing: .02em;
+	line-height: 1.2;
+	text-transform: none;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+
+.shdt-switcher .shdt-switcher__toggle:hover,
+.shdt-switcher .shdt-switcher__toggle:focus,
+.shdt-switcher.is-open .shdt-switcher__toggle {
+	background: var(--shdt-toggle-hover-bg, var(--shdt-toggle-bg));
+	color: var(--shdt-toggle-hover-color, var(--shdt-toggle-color));
+	border-color: var(--shdt-toggle-hover-border);
+	text-decoration: none;
+}
+
+.shdt-switcher .shdt-switcher__toggle:focus-visible {
+	outline: 2px solid var(--shdt-active-color);
+	outline-offset: 2px;
+}
+
+.shdt-switcher__icon,
+.shdt-switcher__arrow,
+.shdt-switcher__current {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.shdt-switcher__icon {
+	font-size: 18px;
+}
+
+.shdt-switcher__icon svg,
+.shdt-switcher__icon i,
+.shdt-switcher__arrow svg {
+	width: 1em;
+	height: 1em;
+	font-size: inherit;
+	flex: none;
+}
+
+.shdt-switcher__arrow {
+	font-size: 14px;
+	opacity: .55;
+	transition: transform .2s ease;
+}
+
+.shdt-switcher.is-open .shdt-switcher__arrow {
+	transform: rotate(180deg);
+}
+
+/* Dropdown */
+.shdt-switcher__menu {
+	position: absolute;
+	top: calc(100% + var(--shdt-offset));
+	right: 0;
+	z-index: 9999;
+	box-sizing: border-box;
+	min-width: 200px;
+	padding: 8px;
+	background: var(--shdt-menu-bg);
+	border: 1px solid var(--shdt-menu-border);
+	border-radius: var(--shdt-menu-radius);
+	box-shadow: var(--shdt-menu-shadow);
+	opacity: 0;
+	visibility: hidden;
+	transform: translateY(-4px);
+	transition: opacity .15s ease, transform .15s ease, visibility 0s linear .15s;
+}
+
+.shdt-switcher--align-left .shdt-switcher__menu {
+	right: auto;
+	left: 0;
+}
+
+.shdt-switcher--align-center .shdt-switcher__menu {
+	right: auto;
+	left: 50%;
+	transform: translate(-50%, -4px);
+}
+
+.shdt-switcher--up .shdt-switcher__menu {
+	top: auto;
+	bottom: calc(100% + var(--shdt-offset));
+	transform: translateY(4px);
+}
+
+.shdt-switcher--align-center.shdt-switcher--up .shdt-switcher__menu {
+	transform: translate(-50%, 4px);
+}
+
+/* Set by switcher.js when the list is taller than the space on screen. */
+.shdt-switcher--scroll .shdt-switcher__menu {
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+
+/* Theme menus style nested lists and links (e.g. hidden sub-menus in
+   Hello Elementor); keep the switcher's own look inside them. */
+.shdt-menu-item .shdt-switcher .shdt-switcher__menu {
+	display: block;
+	top: calc(100% + var(--shdt-offset));
+	right: 0;
+	left: auto;
+	min-width: 200px;
+	max-width: none;
+	background: var(--shdt-menu-bg);
+}
+
+.shdt-menu-item .shdt-switcher .shdt-switcher__li {
+	border: 0;
+}
+
+.shdt-menu-item .shdt-switcher .shdt-switcher__item {
+	display: flex;
+	padding: 10px 14px;
+	color: var(--shdt-item-color);
+}
+
+.shdt-menu-item .shdt-switcher .shdt-switcher__item:hover,
+.shdt-menu-item .shdt-switcher .shdt-switcher__item:focus-visible {
+	color: var(--shdt-item-hover-color);
+}
+
+.shdt-menu-item .shdt-switcher .shdt-switcher__item.is-active {
+	color: var(--shdt-active-color);
+}
+
+/* Right to left: "right" and "left" mean the reading direction's end and start. */
+[dir="rtl"] .shdt-switcher--align-right .shdt-switcher__menu {
+	right: auto;
+	left: 0;
+}
+
+[dir="rtl"] .shdt-switcher--align-left .shdt-switcher__menu {
+	left: auto;
+	right: 0;
+}
+
+.shdt-switcher.is-open .shdt-switcher__menu,
+html:not(.shdt-js) .shdt-switcher:focus-within .shdt-switcher__menu {
+	opacity: 1;
+	visibility: visible;
+	transform: translateY(0);
+	transition: opacity .15s ease, transform .15s ease;
+}
+
+.shdt-switcher--align-center.is-open .shdt-switcher__menu {
+	transform: translate(-50%, 0);
+}
+
+/* Hover only where there is a real pointer; touch uses the click toggle. */
+@media (hover: hover) {
+	.shdt-switcher--hover:hover .shdt-switcher__menu {
+		opacity: 1;
+		visibility: visible;
+		transform: translateY(0);
+		transition: opacity .15s ease, transform .15s ease;
+	}
+
+	.shdt-switcher--align-center.shdt-switcher--hover:hover .shdt-switcher__menu {
+		transform: translate(-50%, 0);
+	}
+}
+
+/* Flipped by switcher.js when the menu would leave the viewport. */
+.shdt-switcher.shdt-switcher--fit-left .shdt-switcher__menu {
+	right: auto;
+	left: 0;
+	transform: none;
+}
+
+.shdt-switcher.shdt-switcher--fit-right .shdt-switcher__menu {
+	left: auto;
+	right: 0;
+	transform: none;
+}
+
+/* Hover bridge so the menu does not close when moving the pointer down. */
+.shdt-switcher--hover .shdt-switcher__menu::before {
+	content: "";
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: calc(-1 * var(--shdt-offset) - 2px);
+	height: calc(var(--shdt-offset) + 2px);
+}
+
+.shdt-switcher--up.shdt-switcher--hover .shdt-switcher__menu::before {
+	top: auto;
+	bottom: calc(-1 * var(--shdt-offset) - 2px);
+}
+
+/* Items */
+.shdt-switcher .shdt-switcher__item {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 14px;
+	border-radius: 8px;
+	color: var(--shdt-item-color);
+	font-size: 16px;
+	font-weight: 400;
+	line-height: 1.3;
+	text-decoration: none;
+	white-space: nowrap;
+	transition: background-color .12s ease, color .12s ease;
+}
+
+.shdt-switcher .shdt-switcher__item:hover,
+.shdt-switcher .shdt-switcher__item:focus-visible {
+	background: var(--shdt-item-hover-bg);
+	color: var(--shdt-item-hover-color);
+	outline: none;
+	text-decoration: none;
+}
+
+.shdt-switcher .shdt-switcher__item.is-active,
+.shdt-switcher .shdt-switcher__item.is-active:hover {
+	color: var(--shdt-active-color);
+	font-weight: 700;
+}
+
+.shdt-switcher__flag {
+	display: block;
+	flex: none;
+	width: 20px;
+	height: 15px;
+	object-fit: cover;
+	border-radius: 2px;
+	box-shadow: 0 0 0 1px rgba(0, 0, 0, .06);
+}
+
+/* Inline list */
+.shdt-switcher--inline .shdt-switcher__list {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+}
+
+.shdt-switcher--inline .shdt-switcher__item {
+	padding: 6px 10px;
+}
+
+.shdt-switcher__sep {
+	opacity: .4;
+}
+
+/* Floating & menu placements */
+.shdt-floating {
+	position: fixed;
+	z-index: 99990;
+}
+
+.shdt-floating--bottom-right { right: 20px; bottom: 20px; }
+.shdt-floating--bottom-left { left: 20px; bottom: 20px; }
+.shdt-floating--top-right { right: 20px; top: 20px; }
+.shdt-floating--top-left { left: 20px; top: 20px; }
+
+.admin-bar .shdt-floating--top-right,
+.admin-bar .shdt-floating--top-left {
+	top: 52px;
+}
+
+.shdt-floating .shdt-switcher__toggle {
+	box-shadow: 0 6px 20px rgba(0, 0, 0, .12);
+}
+
+.shdt-menu-item {
+	display: flex;
+	align-items: center;
+}
+
+.shdt-sr {
+	position: absolute !important;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(1px, 1px, 1px, 1px);
+	white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.shdt-switcher__menu,
+	.shdt-switcher__arrow,
+	.shdt-switcher .shdt-switcher__toggle,
+	.shdt-switcher .shdt-switcher__item {
+		transition: none;
+	}
+}
