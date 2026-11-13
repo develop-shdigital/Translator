@@ -4,7 +4,7 @@ Tags: translation, multilingual, elementor, language switcher, ai
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -21,6 +21,7 @@ Activate, choose your languages, drop the Language Switcher widget into your Ele
 * Visual editor on the page, searchable translations list, export/import.
 * Elementor widget with complete style controls, shortcode, menu item, floating switcher.
 * SEO: hreflang, html lang, canonical, og:locale, translated titles, meta descriptions and alt texts.
+* Your own SEO title and meta description per language for every page, post, product, category and the blog home.
 * Content loaded by JavaScript (popups, AJAX, form messages) is translated too.
 * Swiss German spelling (ss instead of ß), RTL languages, 79 languages.
 
@@ -53,11 +54,19 @@ Stored translations are reused. After saving the new engine, click "Re-translate
 
 The red notice at the top of the admin says why. Most often the OpenAI API account has no credit (the API is billed separately from ChatGPT), the API key is missing, or translations were kept from before a reinstall. Fix the cause and click "Test the saved engine": the texts Google filled in are then redone with OpenAI automatically.
 
+= Can I write my own SEO title and description in each language? =
+
+Yes. Edit the page, post, product or category: the box "SEO title & description per language" has a title and a description field for every language. Translator → SEO lists all pages of a language for quick editing, and the visual editor on the page has the same fields. Empty fields use the automatic translation. Your texts replace the translated title and meta description (and matching Open Graph / Twitter tags); a description you write is added even when the original page has none.
+
 = Are URL slugs translated? =
 
 Not yet. Translated pages keep the original slug with a language prefix, e.g. /fr/about-us/.
 
 == Changelog ==
+
+= 1.2.0 =
+* Own SEO title and meta description per language: in a box on the edit screen of pages, posts, products and other content, on category and tag screens, in the new Translator → SEO overview and in the visual editor. They replace the machine translation of the title, the meta description and matching Open Graph / Twitter tags, and a missing meta description is added.
+* The original title and description of each page and their automatic translations are shown next to the fields, with character counters.
 
 = 1.1.0 =
 * The admin always sees when and why the free engine translates instead of the selected one (not set up, paused, failing), with the number of texts affected.

@@ -45,8 +45,14 @@ function shdt_uninstall_site() {
 	$table = $wpdb->prefix . 'shdt_strings';
 	$wpdb->query( "DROP TABLE IF EXISTS {$table}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.SchemaChange
 
-	foreach ( array( 'shdt_settings', 'shdt_db_version', 'shdt_settings_saved', 'shdt_retranslate_dismissed' ) as $option ) {
+	foreach ( array( 'shdt_settings', 'shdt_db_version', 'shdt_settings_saved', 'shdt_retranslate_dismissed', 'shdt_seo_home' ) as $option ) {
 		delete_option( $option );
+	}
+
+	// Own SEO titles and descriptions per language, and the originals seen on the site.
+	foreach ( array( '_shdt_seo', '_shdt_seo_source' ) as $key ) {
+		delete_metadata( 'post', 0, $key, '', true );
+		delete_metadata( 'term', 0, $key, '', true );
 	}
 }
 

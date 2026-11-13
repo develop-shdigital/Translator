@@ -40,6 +40,12 @@ html.shdt-picking .shdt-editor *:hover { outline: none !important; }
 .shdt-editor__foot { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 6px; }
 .shdt-editor__status { font-size: 12px; color: #4b5e3c; }
 .shdt-editor__save { background: #4b5e3c !important; color: #fff !important; border-color: #4b5e3c !important; }
+.shdt-editor__seo { padding: 10px 16px 12px; border-bottom: 1px solid #eee; background: #fafbf8; }
+.shdt-editor__seo summary { font-weight: 600; cursor: pointer; }
+.shdt-editor__seo .shdt-editor__hint { margin: 6px 0 4px; }
+.shdt-editor__label { display: flex; justify-content: space-between; margin: 8px 0 4px; font-size: 12px; font-weight: 600; }
+.shdt-editor__counter { font-weight: 400; color: #6b6f66; font-variant-numeric: tabular-nums; }
+.shdt-editor__counter.is-long { color: #b32d2e; font-weight: 600; }
 @media (max-width: 900px) {
 	html.shdt-editing { margin-right: 0 !important; }
 	.shdt-editor { width: 100%; height: 55vh; border-left: 0; border-top: 1px solid #e3e4de; }

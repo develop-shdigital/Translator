@@ -61,6 +61,40 @@ class Rest {
 			)
 		);
 
+		// Own SEO texts of a page: whoever may edit that page.
+		register_rest_route(
+			self::NS,
+			'/seo',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'save_seo' ),
+				'permission_callback' => array( $this, 'can_edit_seo' ),
+				'args'                => array(
+					'type'        => array(
+						'type'     => 'string',
+						'enum'     => array( 'post', 'term', 'home' ),
+						'required' => true,
+					),
+					'id'          => array(
+						'type'    => 'integer',
+						'default' => 0,
+					),
+					'lang'        => array(
+						'type'     => 'string',
+						'required' => true,
+					),
+					'title'       => array(
+						'type'    => 'string',
+						'default' => '',
+					),
+					'description' => array(
+						'type'    => 'string',
+						'default' => '',
+					),
+				),
+			)
+		);
+
 		$routes = array(
 			array( '/strings', 'GET', 'list_strings' ),
 			array( '/strings/save', 'POST', 'save_string' ),
@@ -260,6 +294,33 @@ class Rest {
 				'translated' => $translated,
 			)
 		);
+	}
+
+	/**
+	 * Whether the current user may edit the SEO texts of the requested page.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return bool
+	 */
+	public function can_edit_seo( \WP_REST_Request $request ) {
+		$object = Seo::object( (string) $request->get_param( 'type' ), (int) $request->get_param( 'id' ) );
+		return $object && Seo::can_edit( $object );
+	}
+
+	/**
+	 * Save the own SEO title and description of a page in one language.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return \WP_REST_Response|\WP_Error
+	 */
+	public function save_seo( \WP_REST_Request $request ) {
+		$object  = Seo::object( (string) $request->get_param( 'type' ), (int) $request->get_param( 'id' ) );
+		$lang    = sanitize_text_field( (string) $request->get_param( 'lang' ) );
+		$targets = $this->plugin->languages()->targets();
+		if ( ! $object || ! isset( $targets[ $lang ] ) ) {
+			return new \WP_Error( 'shdt_invalid', 'Invalid request', array( 'status' => 400 ) );
+		}
+		return rest_ensure_response( Seo::save( $object, $lang, (string) $request->get_param( 'title' ), (string) $request->get_param( 'description' ) ) );
 	}
 
 	/**

@@ -76,6 +76,59 @@ if ( ! function_exists( 'wp_parse_url' ) ) {
 	}
 }
 
+// Metadata like WordPress: update_*_meta() removes one level of backslashes.
+$GLOBALS['shdt_test_meta']    = array();
+$GLOBALS['shdt_test_actions'] = array();
+if ( ! function_exists( 'wp_slash' ) ) {
+	function wp_slash( $value ) {
+		if ( is_array( $value ) ) {
+			return array_map( 'wp_slash', $value );
+		}
+		return is_string( $value ) ? addslashes( $value ) : $value;
+	}
+}
+if ( ! function_exists( 'wp_unslash' ) ) {
+	function wp_unslash( $value ) {
+		if ( is_array( $value ) ) {
+			return array_map( 'wp_unslash', $value );
+		}
+		return is_string( $value ) ? stripslashes( $value ) : $value;
+	}
+}
+if ( ! function_exists( 'do_action' ) ) {
+	function do_action( $hook, ...$args ) {
+		$GLOBALS['shdt_test_actions'][] = array( $hook, $args );
+	}
+}
+if ( ! function_exists( 'get_post_meta' ) ) {
+	function get_post_meta( $id, $key, $single = false ) {
+		$meta = $GLOBALS['shdt_test_meta'];
+		return isset( $meta['post'][ $id ][ $key ] ) ? $meta['post'][ $id ][ $key ] : ( $single ? '' : array() );
+	}
+	function update_post_meta( $id, $key, $value ) {
+		$GLOBALS['shdt_test_meta']['post'][ $id ][ $key ] = wp_unslash( $value );
+		return true;
+	}
+	function delete_post_meta( $id, $key ) {
+		unset( $GLOBALS['shdt_test_meta']['post'][ $id ][ $key ] );
+		return true;
+	}
+}
+if ( ! function_exists( 'get_term_meta' ) ) {
+	function get_term_meta( $id, $key, $single = false ) {
+		$meta = $GLOBALS['shdt_test_meta'];
+		return isset( $meta['term'][ $id ][ $key ] ) ? $meta['term'][ $id ][ $key ] : ( $single ? '' : array() );
+	}
+	function update_term_meta( $id, $key, $value ) {
+		$GLOBALS['shdt_test_meta']['term'][ $id ][ $key ] = wp_unslash( $value );
+		return true;
+	}
+	function delete_term_meta( $id, $key ) {
+		unset( $GLOBALS['shdt_test_meta']['term'][ $id ][ $key ] );
+		return true;
+	}
+}
+
 require_once SHDT_DIR . 'includes/class-autoloader.php';
 SHDT\Autoloader::register();
 

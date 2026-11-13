@@ -161,11 +161,47 @@ class Html_Processor {
 	);
 
 	/**
+	 * Social meta tags that repeat the SEO title or description.
+	 *
+	 * @var array
+	 */
+	private static $meta_social = array(
+		'og:title'            => 'title',
+		'twitter:title'       => 'title',
+		'og:description'      => 'description',
+		'twitter:description' => 'description',
+	);
+
+	/**
 	 * Options.
 	 *
 	 * @var array
 	 */
 	private $opt;
+
+	/**
+	 * Original SEO title and meta description of the page (null when missing).
+	 *
+	 * @var array
+	 */
+	private $seo_found = array(
+		'title'       => null,
+		'description' => null,
+	);
+
+	/**
+	 * Token indexes: the page's <title> text, its </title>, the meta description, </head>.
+	 *
+	 * @var array
+	 */
+	private $seo_tokens = array();
+
+	/**
+	 * Social meta tags found, decided once title and description are known: [ index, kind, translate ].
+	 *
+	 * @var array
+	 */
+	private $social = array();
 
 	/**
 	 * Tokens.
@@ -209,6 +245,8 @@ class Html_Processor {
 	 *     @type bool          $translate_attributes Translate alt/title/placeholder….
 	 *     @type string[]      $json_keys      Keys translated inside Elementor data-settings JSON.
 	 *     @type array         $form_fields    Hidden inputs added to internal GET forms (name => value).
+	 *     @type array         $seo            Own SEO texts for this page and language: title, description
+	 *                                         ('' = automatic translation).
 	 * }
 	 */
 	public function __construct( array $options ) {
@@ -224,8 +262,14 @@ class Html_Processor {
 				'translate_attributes' => true,
 				'json_keys'            => array( 'rotating_text' ),
 				'form_fields'          => array(),
+				'seo'                  => array(),
 			),
 			$options
+		);
+		$seo              = is_array( $this->opt['seo'] ) ? $this->opt['seo'] : array();
+		$this->opt['seo'] = array(
+			'title'       => isset( $seo['title'] ) ? Seo::key( $seo['title'] ) : '',
+			'description' => isset( $seo['description'] ) ? Seo::key( $seo['description'] ) : '',
 		);
 	}
 
@@ -236,12 +280,19 @@ class Html_Processor {
 	 * @return string
 	 */
 	public function process( $html ) {
-		$this->tokens   = $this->tokenize( $html );
-		$this->segments = array();
-		$this->used     = array();
-		$this->missing  = 0;
+		$this->tokens     = $this->tokenize( $html );
+		$this->segments   = array();
+		$this->used       = array();
+		$this->missing    = 0;
+		$this->seo_tokens = array();
+		$this->social     = array();
+		$this->seo_found  = array(
+			'title'       => null,
+			'description' => null,
+		);
 
 		$this->walk();
+		$this->apply_seo();
 
 		$keys         = $this->collect_keys( $this->segments );
 		$translations = $keys ? $this->translate( $keys ) : array();
@@ -300,6 +351,15 @@ class Html_Processor {
 	 */
 	public function missing() {
 		return $this->missing;
+	}
+
+	/**
+	 * Original SEO title and meta description of the processed page.
+	 *
+	 * @return array [ title => string|null, description => string|null ]
+	 */
+	public function seo_found() {
+		return $this->seo_found;
 	}
 
 	/**
@@ -570,6 +630,9 @@ class Html_Processor {
 					break;
 
 				case self::T_CLOSE:
+					if ( 'head' === $token['name'] && ! isset( $this->seo_tokens['head'] ) ) {
+						$this->seo_tokens['head'] = $i;
+					}
 					if ( $skip ) {
 						if ( $token['name'] === $skip[0] && --$skip[1] <= 0 ) {
 							$skip = null;
@@ -585,7 +648,22 @@ class Html_Processor {
 
 				case self::T_RAW:
 					$this->flush( $run );
-					if ( ! $skip && 'title' === $token['name'] && $this->opt['translate_meta'] ) {
+					if ( 'title' !== $token['name'] ) {
+						break;
+					}
+					// The document title: the first one in <head>, not an SVG/MathML title.
+					if ( ! isset( $this->seo_tokens['title'] ) && ! isset( $this->seo_tokens['head'] ) && ! ( $skip && isset( self::$foreign[ $skip[0] ] ) ) ) {
+						$this->seo_tokens['title'] = $i;
+						$this->seo_found['title']  = Seo::key( Text::decode( $token['raw'] ) );
+						if ( isset( $this->tokens[ $i + 1 ] ) && self::T_CLOSE === $this->tokens[ $i + 1 ]['t'] && 'title' === $this->tokens[ $i + 1 ]['name'] ) {
+							$this->seo_tokens['title_close'] = $i + 1;
+						}
+						if ( '' !== $this->opt['seo']['title'] ) {
+							$this->tokens[ $i ]['out'] = Text::escape_text( $this->opt['seo']['title'] );
+							break; // Written by the site owner: nothing to translate.
+						}
+					}
+					if ( ! $skip && $this->opt['translate_meta'] ) {
 						$segment = $this->text_segment( $i );
 						if ( $segment ) {
 							$this->segments[] = $segment;
@@ -598,6 +676,45 @@ class Html_Processor {
 			}
 		}
 		$this->flush( $run );
+	}
+
+	/**
+	 * Own SEO texts: social tags that repeated the original title or description
+	 * get the own text too (others are translated as usual), and a missing title
+	 * or meta description is added.
+	 */
+	private function apply_seo() {
+		$seo = $this->opt['seo'];
+		foreach ( $this->social as $entry ) {
+			list( $i, $kind, $translate ) = $entry;
+			$content = isset( $this->tokens[ $i ]['attrs']['content']['v'] ) ? Seo::key( $this->tokens[ $i ]['attrs']['content']['v'] ) : '';
+			$found   = $this->seo_found[ $kind ];
+			if ( '' !== $seo[ $kind ] && '' !== $content && null !== $found && $content === $found ) {
+				$this->set_attr( $i, 'content', $seo[ $kind ] );
+			} elseif ( $translate && $this->opt['translate_meta'] ) {
+				$this->attr_segment( $i, 'content' );
+			}
+		}
+
+		$add = '';
+		if ( '' !== $seo['title'] && ! isset( $this->seo_tokens['title'] ) ) {
+			$add .= '<title>' . Text::escape_text( $seo['title'] ) . '</title>';
+		}
+		if ( '' !== $seo['description'] && ! isset( $this->seo_tokens['description'] ) ) {
+			$add .= '<meta name="description" content="' . Text::escape_attr( $seo['description'] ) . '">';
+		}
+		if ( '' === $add ) {
+			return;
+		}
+		// Right after </title>, or at the end of <head>.
+		if ( isset( $this->seo_tokens['title_close'] ) ) {
+			$at = $this->seo_tokens['title_close'];
+		} elseif ( isset( $this->seo_tokens['head'] ) && $this->seo_tokens['head'] > 0 ) {
+			$at = $this->seo_tokens['head'] - 1;
+		} else {
+			return;
+		}
+		$this->tokens[ $at ]['after'] = ( isset( $this->tokens[ $at ]['after'] ) ? $this->tokens[ $at ]['after'] : '' ) . "\n" . $add;
 	}
 
 	/**
@@ -670,6 +787,20 @@ class Html_Processor {
 			}
 			if ( 'og:locale' === $prop && '' !== $this->opt['og_locale'] && isset( $attrs['content'] ) ) {
 				$this->set_attr( $i, 'content', $this->opt['og_locale'] );
+			} elseif ( 'description' === $prop && ! isset( $this->seo_tokens['head'] ) ) {
+				// The page description: the first in <head> is the original; an own text replaces all of them.
+				if ( ! isset( $this->seo_tokens['description'] ) ) {
+					$this->seo_tokens['description'] = $i;
+					$this->seo_found['description']  = isset( $attrs['content']['v'] ) ? Seo::key( $attrs['content']['v'] ) : '';
+				}
+				if ( '' !== $this->opt['seo']['description'] ) {
+					$this->set_attr( $i, 'content', $this->opt['seo']['description'] );
+				} elseif ( $translate && $this->opt['translate_meta'] ) {
+					$this->attr_segment( $i, 'content' );
+				}
+			} elseif ( isset( self::$meta_social[ $prop ] ) ) {
+				// Decided after the walk, when the page's title and description are known.
+				$this->social[] = array( $i, self::$meta_social[ $prop ], $translate );
 			} elseif ( $translate && $this->opt['translate_meta'] && isset( self::$meta_text[ $prop ] ) ) {
 				$this->attr_segment( $i, 'content' );
 			}

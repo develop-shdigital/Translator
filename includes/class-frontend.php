@@ -33,6 +33,13 @@ class Frontend {
 	private $search_term = null;
 
 	/**
+	 * Page, post, term or blog home whose own SEO texts this request uses (null: none).
+	 *
+	 * @var array|null
+	 */
+	private $seo_object = null;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Plugin $plugin Plugin.
@@ -106,6 +113,7 @@ class Frontend {
 	 */
 	public function start_buffer() {
 		if ( $this->should_translate() ) {
+			$this->seo_object = Seo::current_object();
 			ob_start( array( $this, 'process_output' ) );
 		}
 	}
@@ -207,6 +215,7 @@ class Frontend {
 			'deadline' => microtime( true ) + $budget,
 		);
 		$search  = null !== $this->search_term ? Text::normalize( $this->search_term ) : '';
+		$seo     = Seo::for_lang( $this->seo_object, $lang );
 
 		$processor = new Html_Processor(
 			array(
@@ -243,10 +252,17 @@ class Frontend {
 				'json_keys'            => apply_filters( 'shdt_json_keys', array( 'rotating_text' ) ),
 				// "?lang=" mode: GET forms (search) must carry the language themselves.
 				'form_fields'          => 'query' === $router->mode() && $entry ? array( 'lang' => $entry['slug'] ) : array(),
+				// Own SEO title and description of this page in this language.
+				'seo'                  => $seo,
 			)
 		);
 
 		$output = $processor->process( $html );
+		$found  = $processor->seo_found();
+		if ( $this->seo_object && ! is_preview() ) {
+			// Shown next to the fields in the admin; an SEO plugin or the theme makes them.
+			Seo::remember_source( $this->seo_object, $found['title'], $found['description'] );
+		}
 
 		if ( $processor->missing() > 0 || $this->is_editor() ) {
 			// Do not let page caches keep a half translated page.
@@ -261,7 +277,7 @@ class Frontend {
 		}
 
 		if ( $this->is_editor() ) {
-			$output = $this->inject_editor_data( $output, $processor->used(), $lang );
+			$output = $this->inject_editor_data( $output, $processor->used(), $lang, $this->editor_seo( $seo, $found, $lang ) );
 		}
 
 		return apply_filters( 'shdt_translated_html', $output, $lang );
@@ -280,14 +296,45 @@ class Frontend {
 	}
 
 	/**
+	 * SEO texts of this page for the visual editor.
+	 *
+	 * @param array  $seo   Own texts in this language.
+	 * @param array  $found Original title and description of the page.
+	 * @param string $lang  Language.
+	 * @return array|null Null when the page has no SEO texts of its own or the user may not edit them.
+	 */
+	private function editor_seo( array $seo, array $found, $lang ) {
+		if ( ! $this->seo_object || ! Seo::can_edit( $this->seo_object ) ) {
+			return null;
+		}
+		$original = array(
+			'title'       => (string) $found['title'],
+			'description' => (string) $found['description'],
+		);
+		$auto     = Seo::automatic( $this->plugin->store(), $lang, array_values( $original ) );
+		return array(
+			'type'        => $this->seo_object['type'],
+			'id'          => $this->seo_object['id'],
+			'title'       => $seo['title'],
+			'description' => $seo['description'],
+			'original'    => $original,
+			'auto'        => array(
+				'title'       => isset( $auto[ $original['title'] ] ) ? $auto[ $original['title'] ] : '',
+				'description' => isset( $auto[ $original['description'] ] ) ? $auto[ $original['description'] ] : '',
+			),
+		);
+	}
+
+	/**
 	 * Add the strings of this page for the visual editor.
 	 *
-	 * @param string $html Output.
-	 * @param array  $used key => translation.
-	 * @param string $lang Language.
+	 * @param string     $html Output.
+	 * @param array      $used key => translation.
+	 * @param string     $lang Language.
+	 * @param array|null $seo  SEO texts of the page (see editor_seo()).
 	 * @return string
 	 */
-	private function inject_editor_data( $html, array $used, $lang ) {
+	private function inject_editor_data( $html, array $used, $lang, $seo = null ) {
 		$items = array();
 		foreach ( $used as $original => $translation ) {
 			$items[] = array(
@@ -299,6 +346,7 @@ class Frontend {
 			array(
 				'lang'    => $lang,
 				'strings' => $items,
+				'seo'     => $seo,
 			),
 			JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE
 		);
@@ -380,6 +428,7 @@ class Frontend {
 				'shdtEditor',
 				array(
 					'endpoint' => esc_url_raw( rest_url( 'shdt/v1/strings/save' ) ),
+					'seoUrl'   => esc_url_raw( rest_url( 'shdt/v1/seo' ) ),
 					'nonce'    => wp_create_nonce( 'wp_rest' ),
 					'language' => $languages->get( $languages->current() )['name'],
 					'exitUrl'  => esc_url_raw( $this->plugin->router()->current_url( $languages->current() ) ),
@@ -394,6 +443,11 @@ class Frontend {
 						'pending'  => __( 'not translated yet', 'shd-translator' ),
 						'original' => __( 'Original', 'shd-translator' ),
 						'tags'     => __( 'Keep tags like <x1>…</x1> around the matching words.', 'shd-translator' ),
+						'seo'      => __( 'SEO title & description', 'shd-translator' ),
+						'seoHint'  => __( 'What search engines show for this page in this language. Empty fields use the automatic translation.', 'shd-translator' ),
+						'seoTitle' => __( 'SEO title', 'shd-translator' ),
+						'seoDesc'  => __( 'Meta description', 'shd-translator' ),
+						'seoNone'  => __( 'The original page has no description – write one here.', 'shd-translator' ),
 						/* translators: %d: number of strings */
 						'count'    => __( '%d strings on this page', 'shd-translator' ),
 					),

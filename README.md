@@ -127,6 +127,12 @@ Code, preformatted text, SVG, scripts, styles and text areas are never translate
 - `<link rel="alternate" hreflang="…">` for every language plus `x-default`.
 - `<html lang>` / `dir` (RTL languages), `og:locale`, canonical and `og:url` per language.
 - Titles, meta descriptions, Open Graph and Twitter tags, image alt texts are translated.
+- **Own SEO title and description per language.** Every page, post, product, category/tag archive and the blog home can have its own SEO title and meta description in each language:
+  - on the edit screen in the box *SEO title & description per language* (also on category and tag screens),
+  - in *Translator → SEO*, a list of all pages of one language (filter by content type, search, "only without own texts"),
+  - in the visual editor on the translated page.
+
+  Empty fields use the automatic translation. Own texts replace the translated `<title>` and meta description, and Open Graph / Twitter titles and descriptions that repeated the original; a description is added to pages that have none. The original title and description (whatever the theme or an SEO plugin like Yoast or Rank Math outputs) are recorded when the page is first viewed in another language and shown next to the fields with their automatic translation. Counters show the usual limits of search results (60 characters for titles, 160 for descriptions).
 - Optional first-visit redirect to the browser language. It runs in the browser, so it works with page caches, and it skips search engine bots.
 - Search: visitors search in their own language; the query is translated back to find your content. Known words come from the translation memory; other short terms use the engine, limited per visitor and per day (`shdt_search_rate_limit`, `shdt_search_daily_limit`).
 
@@ -135,6 +141,7 @@ Code, preformatted text, SVG, scripts, styles and text areas are never translate
 - Each language has its own URL, so page caches (WP Rocket, LiteSpeed, W3TC, Cloudflare …) cache each language separately.
 - Pages with texts still waiting for translation are sent with `Cache-Control: no-cache` and `DONOTCACHEPAGE`, so caches never keep a half-translated page.
 - Only unknown texts go to an engine, in parallel batches, within the *seconds per page view* budget (default 20 s). A normal page view costs one indexed database query.
+- Changes made in the admin (edited translations, own SEO texts) appear on a cached page once its cache expires or is purged. The actions `shdt_translations_updated` and `shdt_seo_saved` can be used to purge the translated URLs automatically.
 
 ## Developer reference
 
@@ -158,12 +165,15 @@ Filters:
 | `shdt_search_rate_limit`, `shdt_search_daily_limit` (int) | Limits for translating search terms back (per visitor per 10 minutes, per day). |
 | `shdt_http_args`, `shdt_parallel_requests`, `shdt_engine_concurrency` | HTTP tuning. Requests run in parallel unless a proxy, `WP_HTTP_BLOCK_EXTERNAL`, `pre_http_request` or `shdt_http_args` is in use; then they go through `wp_remote_request()` one by one. |
 | `shdt_billing_pause` (int) | Seconds an engine pauses when its API account has no credit (default 1800). |
+| `shdt_seo_post_types` (WP_Post_Type[]), `shdt_seo_taxonomies` (WP_Taxonomy[]) | Content with own SEO texts per language (default: public post types except media and Elementor templates, public taxonomies). |
 
-Actions: `shdt_translations_updated` (lang, original texts) fires after the background queue added or replaced translations, e.g. to purge a page cache.
+Actions: `shdt_translations_updated` (lang, original texts) fires after the background queue added or replaced translations, e.g. to purge a page cache. `shdt_seo_saved` (object `{type: post|term|home, id}`, lang, texts) fires when own SEO texts of a page change.
+
+Own SEO texts are stored in the post/term meta `_shdt_seo` (lang ⇒ title, description) and, for the blog home, the option `shdt_seo_home`.
 
 PHP helpers: `shdt()->languages()->current()`, `shdt()->router()->localize_url( $url, 'de' )`, `SHDT\Switcher::render( $args )`.
 
-REST (namespace `shdt/v1`): `POST /translate` (public, rate-limited; used for JavaScript content) and admin-only endpoints for the editor and tools.
+REST (namespace `shdt/v1`): `POST /translate` (public, rate-limited; used for JavaScript content), `POST /seo` (`type`, `id`, `lang`, `title`, `description`; for users who may edit that page) and admin-only endpoints for the editor and tools.
 
 ## FAQ
 

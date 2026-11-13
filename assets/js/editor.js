@@ -169,6 +169,87 @@
 		var hint = el('p', 'shdt-editor__hint', t.tags);
 		var list = el('div', 'shdt-editor__list');
 
+		// Own SEO title and description of the page in this language.
+		var seoBox = null;
+		if (data.seo && cfg.seoUrl) {
+			seoBox = seoSection(data.seo);
+		}
+
+		function seoSection(seo) {
+			var box = el('details', 'shdt-editor__seo');
+			box.open = !!(seo.title || seo.description);
+			box.appendChild(el('summary', '', t.seo));
+			box.appendChild(el('p', 'shdt-editor__hint', t.seoHint));
+			var inputs = {};
+			[['title', t.seoTitle, 60], ['description', t.seoDesc, 160]].forEach(function (spec) {
+				var kind = spec[0];
+				var id = 'shdt-editor-seo-' + kind;
+				var label = el('label', 'shdt-editor__label', spec[1]);
+				label.htmlFor = id;
+				var counter = el('span', 'shdt-editor__counter');
+				label.appendChild(counter);
+				var field = el(kind === 'title' ? 'input' : 'textarea', 'shdt-editor__input');
+				field.id = id;
+				if (kind === 'title') {
+					field.type = 'text';
+				} else {
+					field.rows = 3;
+				}
+				field.value = seo[kind] || '';
+				field.placeholder = (seo.auto && seo.auto[kind]) || (seo.original && seo.original[kind]) || (kind === 'description' && seo.original && seo.original.title ? t.seoNone : '');
+				var count = function () {
+					var n = Array.from ? Array.from(field.value.trim()).length : field.value.trim().length;
+					counter.textContent = n ? ' ' + n + ' / ' + spec[2] : '';
+					counter.classList.toggle('is-long', n > spec[2]);
+				};
+				field.addEventListener('input', count);
+				count();
+				inputs[kind] = field;
+				box.appendChild(label);
+				box.appendChild(field);
+			});
+			var foot = el('div', 'shdt-editor__foot');
+			var status = el('span', 'shdt-editor__status');
+			var save = el('button', 'shdt-editor__save', t.save);
+			save.type = 'button';
+			foot.appendChild(status);
+			foot.appendChild(save);
+			box.appendChild(foot);
+
+			save.addEventListener('click', function () {
+				save.disabled = true;
+				status.textContent = '…';
+				fetch(cfg.seoUrl, {
+					method: 'POST',
+					credentials: 'same-origin',
+					headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce },
+					body: JSON.stringify({ type: seo.type, id: seo.id, lang: data.lang, title: inputs.title.value, description: inputs.description.value })
+				}).then(function (r) {
+					return r.json().then(function (body) {
+						if (!r.ok) {
+							throw new Error(body && body.message ? body.message : t.error);
+						}
+						return body;
+					});
+				}).then(function (body) {
+					inputs.title.value = body.title;
+					inputs.description.value = body.description;
+					inputs.title.dispatchEvent(new Event('input'));
+					inputs.description.dispatchEvent(new Event('input'));
+					var shown = body.title || (seo.auto && seo.auto.title) || '';
+					if (shown) {
+						document.title = shown;
+					}
+					status.textContent = t.saved;
+				}).catch(function (err) {
+					status.textContent = err.message || t.error;
+				}).then(function () {
+					save.disabled = false;
+				});
+			});
+			return box;
+		}
+
 		data.strings.forEach(function (item) {
 			var row = el('div', 'shdt-editor__item' + (item.t ? '' : ' is-pending'));
 			row.dataset.search = (item.o + ' ' + item.t).toLowerCase();
@@ -276,6 +357,9 @@
 		}, true);
 
 		panel.appendChild(head);
+		if (seoBox) {
+			panel.appendChild(seoBox);
+		}
 		panel.appendChild(tools);
 		panel.appendChild(count);
 		panel.appendChild(hint);

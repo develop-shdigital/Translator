@@ -26,12 +26,20 @@ class Admin {
 	private $plugin;
 
 	/**
+	 * SEO texts per language.
+	 *
+	 * @var Seo_Admin
+	 */
+	private $seo;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Plugin $plugin Plugin.
 	 */
 	public function __construct( Plugin $plugin ) {
 		$this->plugin = $plugin;
+		$this->seo    = new Seo_Admin( $plugin );
 	}
 
 	/**
@@ -48,6 +56,7 @@ class Admin {
 		add_action( 'admin_notices', array( $this, 'notices' ) );
 		add_filter( 'plugin_action_links_' . SHDT_BASENAME, array( $this, 'action_links' ) );
 		add_filter( 'plugin_row_meta', array( $this, 'row_meta' ), 10, 2 );
+		$this->seo->hooks();
 	}
 
 	/**
@@ -87,6 +96,7 @@ class Admin {
 		);
 		add_submenu_page( self::SLUG, __( 'Languages & Settings', 'shd-translator' ), __( 'Languages & Settings', 'shd-translator' ), 'manage_options', self::SLUG, array( $this, 'page_settings' ) );
 		add_submenu_page( self::SLUG, __( 'Translations', 'shd-translator' ), __( 'Translations', 'shd-translator' ), 'manage_options', self::SLUG . '-strings', array( $this, 'page_strings' ) );
+		add_submenu_page( self::SLUG, __( 'SEO title & description per language', 'shd-translator' ), __( 'SEO', 'shd-translator' ), 'manage_options', Seo_Admin::PAGE, array( $this->seo, 'page' ) );
 		add_submenu_page( self::SLUG, __( 'Tools', 'shd-translator' ), __( 'Tools', 'shd-translator' ), 'manage_options', self::SLUG . '-tools', array( $this, 'page_tools' ) );
 	}
 

@@ -1,0 +1,34 @@
+/* SHD Translator – SEO fields per language (edit screens and Translator → SEO). */
+.shdt-seo__intro { margin: 4px 0 12px; color: #646970; }
+.shdt-seo__original { display: flex; flex-direction: column; gap: 2px; margin: 0 0 14px; padding: 10px 12px; background: #f6f7f7; border-radius: 6px; }
+.shdt-seo__original--unknown { display: block; color: #646970; }
+.shdt-seo__original-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #646970; }
+.shdt-seo__lang { min-width: 0; margin: 0 0 14px; padding: 4px 0 0; border: 0; border-top: 1px solid #dcdcde; }
+.shdt-seo__lang legend { display: flex; align-items: center; gap: 8px; padding: 0 8px 0 0; font-weight: 600; }
+.shdt-seo__flag { width: 20px; height: 15px; object-fit: cover; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0, 0, 0, .08); }
+.shdt-seo__view { font-weight: 400; }
+.shdt-seo__field { margin: 8px 0 10px; }
+.shdt-seo__label { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.shdt-seo__label label { font-weight: 500; }
+.shdt-seo__count { font-size: 12px; color: #646970; font-variant-numeric: tabular-nums; }
+.shdt-seo__count.is-long { color: #b32d2e; font-weight: 600; }
+.shdt-seo textarea { resize: vertical; }
+.shdt-seo__copy { margin-top: 4px; font-size: 12px; }
+.shdt-seo-term { max-width: 820px; margin: 24px 0 12px; }
+
+/* Translator → SEO */
+.shdt-seo-missing { display: inline-flex; align-items: center; gap: 4px; }
+.shdt-seo-table td { vertical-align: top; }
+.shdt-seo-table__page { width: 20%; }
+.shdt-seo-table__page strong { display: block; word-break: break-word; }
+.shdt-seo-table__original { width: 30%; }
+.shdt-seo-table__original strong, .shdt-seo-table__original span { display: block; word-break: break-word; }
+.shdt-seo-table__original span { margin-top: 4px; }
+.shdt-seo-table__fields .shdt-seo__field:first-child { margin-top: 0; }
+
+@media (max-width: 782px) {
+	.shdt-seo-table thead { display: none; }
+	.shdt-seo-table tr, .shdt-seo-table td { display: block; width: auto; }
+	.shdt-seo-table td { padding: 8px 12px; }
+	.shdt-seo-table tr { border-bottom: 1px solid #dcdcde; }
+}

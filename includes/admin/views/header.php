@@ -11,6 +11,7 @@ defined( 'ABSPATH' ) || exit;
 $shdt_tabs = array(
 	'shd-translator'         => __( 'Languages & Settings', 'shd-translator' ),
 	'shd-translator-strings' => __( 'Translations', 'shd-translator' ),
+	'shd-translator-seo'     => __( 'SEO', 'shd-translator' ),
 	'shd-translator-tools'   => __( 'Tools', 'shd-translator' ),
 );
 ?>
