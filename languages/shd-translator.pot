@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-13T16:00:09+00:00\n"
+"POT-Creation-Date: 2026-11-13T16:28:10+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: shd-translator\n"
@@ -62,8 +62,8 @@ msgid "Translations"
 msgstr ""
 
 #: includes/admin/class-admin.php:99
-#: includes/admin/class-seo-admin.php:118
-#: includes/admin/class-seo-admin.php:158
+#: includes/admin/class-seo-admin.php:80
+#: includes/admin/class-seo-admin.php:120
 #: includes/admin/views/seo.php:88
 msgid "SEO title & description per language"
 msgstr ""
@@ -84,7 +84,7 @@ msgid "Remove"
 msgstr ""
 
 #: includes/admin/class-admin.php:148
-#: includes/admin/class-seo-admin.php:218
+#: includes/admin/class-seo-admin.php:180
 #: includes/admin/views/seo.php:137
 #: includes/admin/views/settings.php:72
 #: includes/admin/views/strings.php:83
@@ -322,7 +322,7 @@ msgstr ""
 #: includes/admin/class-admin.php:560
 #: includes/admin/class-admin.php:588
 #: includes/admin/class-admin.php:624
-#: includes/admin/class-seo-admin.php:478
+#: includes/admin/class-seo-admin.php:435
 msgid "Sorry, you are not allowed to do that."
 msgstr ""
 
@@ -330,68 +330,68 @@ msgstr ""
 msgid "Google Translate (in your browser)"
 msgstr ""
 
-#: includes/admin/class-seo-admin.php:177
+#: includes/admin/class-seo-admin.php:139
 msgid "What search engines show for this page in the other languages. Empty fields use the automatic translation of the original title and description."
 msgstr ""
 
-#: includes/admin/class-seo-admin.php:196
+#: includes/admin/class-seo-admin.php:158
 msgid "View page"
 msgstr ""
 
-#: includes/admin/class-seo-admin.php:196
+#: includes/admin/class-seo-admin.php:158
 msgid "(opens in a new tab)"
 msgstr ""
 
-#: includes/admin/class-seo-admin.php:213
+#: includes/admin/class-seo-admin.php:175
 msgid "Tip: open the page once in another language – the original title and description and their automatic translations then show here."
 msgstr ""
 
-#: includes/admin/class-seo-admin.php:219
+#: includes/admin/class-seo-admin.php:181
 #: includes/admin/views/seo.php:179
-#: includes/class-seo.php:284
+#: includes/class-seo.php:344
 msgid "(no title)"
 msgstr ""
 
-#: includes/admin/class-seo-admin.php:220
+#: includes/admin/class-seo-admin.php:182
 #: includes/admin/views/seo.php:180
 msgid "No meta description."
 msgstr ""
 
-#: includes/admin/class-seo-admin.php:251
+#: includes/admin/class-seo-admin.php:213
 msgid "Automatic translation of the page title"
 msgstr ""
 
-#: includes/admin/class-seo-admin.php:252
+#: includes/admin/class-seo-admin.php:214
 msgid "Automatic translation of the page description"
 msgstr ""
 
-#: includes/admin/class-seo-admin.php:255
+#: includes/admin/class-seo-admin.php:217
 #: includes/class-frontend.php:450
 msgid "The original page has no description – write one here."
 msgstr ""
 
-#: includes/admin/class-seo-admin.php:263
+#: includes/admin/class-seo-admin.php:225
 #: includes/class-frontend.php:448
 msgid "SEO title"
 msgstr ""
 
-#: includes/admin/class-seo-admin.php:263
+#: includes/admin/class-seo-admin.php:225
 #: includes/class-frontend.php:449
 msgid "Meta description"
 msgstr ""
 
 #. translators: %d: number of characters
-#: includes/admin/class-seo-admin.php:264
+#: includes/admin/class-seo-admin.php:226
 #, php-format
 msgid "Search results usually show about %d characters."
 msgstr ""
 
-#: includes/admin/class-seo-admin.php:272
+#: includes/admin/class-seo-admin.php:234
 msgid "Start from the automatic translation"
 msgstr ""
 
-#: includes/admin/class-seo-admin.php:362
-#: includes/class-seo.php:290
+#: includes/admin/class-seo-admin.php:326
+#: includes/class-seo.php:350
 msgid "Home page (latest posts)"
 msgstr ""
 

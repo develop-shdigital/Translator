@@ -51,24 +51,81 @@ class Seo {
 	 * @return array|null { type: post|term|home, id: int }
 	 */
 	public static function current_object() {
-		if ( is_paged() || is_search() || is_404() ) {
-			return null; // Page 2 of a list must not repeat the title of page 1.
+		// Page 2 of a list or of a split post (also /page/2/ of a static front page,
+		// which WordPress counts in "page") has its own title: no page-1 texts there.
+		if ( is_paged() || (int) get_query_var( 'page' ) > 1 || is_search() || is_404() ) {
+			return null;
 		}
 		if ( is_front_page() && is_home() ) {
 			return self::object( 'home', 0 );
 		}
-		if ( function_exists( 'is_shop' ) && function_exists( 'wc_get_page_id' ) && is_shop() ) {
-			$id = (int) wc_get_page_id( 'shop' );
-			return $id > 0 ? self::object( 'post', $id ) : null;
-		}
+		$object  = null;
 		$queried = get_queried_object();
-		if ( $queried instanceof \WP_Post && ( is_singular() || is_home() ) ) {
-			return self::object( 'post', $queried->ID );
+		if ( function_exists( 'is_shop' ) && function_exists( 'wc_get_page_id' ) && is_shop() ) {
+			$object = self::object( 'post', (int) wc_get_page_id( 'shop' ) );
+		} elseif ( $queried instanceof \WP_Post && ( is_singular() || is_home() ) ) {
+			$object = self::object( 'post', $queried->ID );
+		} elseif ( $queried instanceof \WP_Term && ( is_category() || is_tag() || is_tax() ) ) {
+			$object = self::object( 'term', $queried->term_id );
 		}
-		if ( $queried instanceof \WP_Term && ( is_category() || is_tag() || is_tax() ) ) {
-			return self::object( 'term', $queried->term_id );
+		return $object && self::supports( $object ) ? $object : null;
+	}
+
+	/**
+	 * Post types with own SEO texts per language: those with pages on the site.
+	 *
+	 * @return \WP_Post_Type[] name => object
+	 */
+	public static function post_types() {
+		$types = get_post_types( array( 'public' => true ), 'objects' );
+		unset( $types['attachment'], $types['elementor_library'] );
+		/**
+		 * Post types that get SEO fields per language.
+		 *
+		 * @param \WP_Post_Type[] $types name => object.
+		 */
+		return (array) apply_filters( 'shdt_seo_post_types', $types );
+	}
+
+	/**
+	 * Taxonomies with own SEO texts per language (their archive pages).
+	 *
+	 * @return \WP_Taxonomy[] name => object
+	 */
+	public static function taxonomies() {
+		$taxonomies = get_taxonomies(
+			array(
+				'public'  => true,
+				'show_ui' => true,
+			),
+			'objects'
+		);
+		unset( $taxonomies['post_format'] );
+		/**
+		 * Taxonomies that get SEO fields per language.
+		 *
+		 * @param \WP_Taxonomy[] $taxonomies name => object.
+		 */
+		return (array) apply_filters( 'shdt_seo_taxonomies', $taxonomies );
+	}
+
+	/**
+	 * Whether an object exists and its content type has own SEO texts.
+	 *
+	 * @param array $object Object reference.
+	 * @return bool
+	 */
+	public static function supports( array $object ) {
+		switch ( $object['type'] ) {
+			case 'post':
+				$post = get_post( $object['id'] );
+				return $post instanceof \WP_Post && isset( self::post_types()[ $post->post_type ] );
+			case 'term':
+				$term = get_term( $object['id'] );
+				return $term instanceof \WP_Term && isset( self::taxonomies()[ $term->taxonomy ] );
+			default:
+				return true;
 		}
-		return null;
 	}
 
 	/**
@@ -262,11 +319,14 @@ class Seo {
 	 * @return bool
 	 */
 	public static function can_edit( array $object ) {
+		if ( ! self::supports( $object ) ) {
+			return false;
+		}
 		switch ( $object['type'] ) {
 			case 'post':
-				return (bool) get_post( $object['id'] ) && current_user_can( 'edit_post', $object['id'] );
+				return current_user_can( 'edit_post', $object['id'] );
 			case 'term':
-				return (bool) get_term( $object['id'] ) && current_user_can( 'edit_term', $object['id'] );
+				return current_user_can( 'edit_term', $object['id'] );
 			default:
 				return current_user_can( 'manage_options' );
 		}

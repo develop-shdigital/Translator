@@ -599,6 +599,15 @@ class Html_Processor {
 
 				case self::T_OPEN:
 					$name = $token['name'];
+					if ( 'title' === $name && $this->is_document_title( $skip ) && isset( $this->tokens[ $i + 1 ] ) && self::T_CLOSE === $this->tokens[ $i + 1 ]['t'] && 'title' === $this->tokens[ $i + 1 ]['name'] ) {
+						// An empty <title></title> (no text token): still the document title.
+						$this->seo_tokens['title']       = $i;
+						$this->seo_tokens['title_close'] = $i + 1;
+						$this->seo_found['title']        = '';
+						if ( '' !== $this->opt['seo']['title'] ) {
+							$this->tokens[ $i ]['after'] = Text::escape_text( $this->opt['seo']['title'] );
+						}
+					}
 					// In SVG/MathML a self-closing tag really is closed.
 					$closed = isset( self::$void[ $name ] ) || ( ! empty( $token['self'] ) && ( 'svg' === $name || 'math' === $name || ( $skip && isset( self::$foreign[ $skip[0] ] ) ) ) );
 					if ( $skip ) {
@@ -651,8 +660,7 @@ class Html_Processor {
 					if ( 'title' !== $token['name'] ) {
 						break;
 					}
-					// The document title: the first one in <head>, not an SVG/MathML title.
-					if ( ! isset( $this->seo_tokens['title'] ) && ! isset( $this->seo_tokens['head'] ) && ! ( $skip && isset( self::$foreign[ $skip[0] ] ) ) ) {
+					if ( $this->is_document_title( $skip ) ) {
 						$this->seo_tokens['title'] = $i;
 						$this->seo_found['title']  = Seo::key( Text::decode( $token['raw'] ) );
 						if ( isset( $this->tokens[ $i + 1 ] ) && self::T_CLOSE === $this->tokens[ $i + 1 ]['t'] && 'title' === $this->tokens[ $i + 1 ]['name'] ) {
@@ -676,6 +684,17 @@ class Html_Processor {
 			}
 		}
 		$this->flush( $run );
+	}
+
+	/**
+	 * Whether a <title> met now is the document title: the first one in <head>,
+	 * not the title of an SVG or MathML element.
+	 *
+	 * @param array|null $skip Excluded element being walked through.
+	 * @return bool
+	 */
+	private function is_document_title( $skip ) {
+		return ! isset( $this->seo_tokens['title'] ) && ! isset( $this->seo_tokens['head'] ) && ! ( $skip && isset( self::$foreign[ $skip[0] ] ) );
 	}
 
 	/**

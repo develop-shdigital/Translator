@@ -47,44 +47,6 @@ class Seo_Admin {
 	}
 
 	/**
-	 * Post types with own SEO texts per language: those with pages on the site.
-	 *
-	 * @return \WP_Post_Type[] name => object
-	 */
-	public static function post_types() {
-		$types = get_post_types( array( 'public' => true ), 'objects' );
-		unset( $types['attachment'], $types['elementor_library'] );
-		/**
-		 * Post types that get SEO fields per language.
-		 *
-		 * @param \WP_Post_Type[] $types name => object.
-		 */
-		return (array) apply_filters( 'shdt_seo_post_types', $types );
-	}
-
-	/**
-	 * Taxonomies with own SEO texts per language (their archive pages).
-	 *
-	 * @return \WP_Taxonomy[] name => object
-	 */
-	public static function taxonomies() {
-		$taxonomies = get_taxonomies(
-			array(
-				'public'  => true,
-				'show_ui' => true,
-			),
-			'objects'
-		);
-		unset( $taxonomies['post_format'] );
-		/**
-		 * Taxonomies that get SEO fields per language.
-		 *
-		 * @param \WP_Taxonomy[] $taxonomies name => object.
-		 */
-		return (array) apply_filters( 'shdt_seo_taxonomies', $taxonomies );
-	}
-
-	/**
 	 * Scripts and styles: SEO overview, edit screens of posts and terms.
 	 *
 	 * @param string $hook Screen hook.
@@ -96,8 +58,8 @@ class Seo_Admin {
 			if ( ! $screen || ! $this->plugin->languages()->has_targets() ) {
 				return;
 			}
-			$post_screen = in_array( $hook, array( 'post.php', 'post-new.php' ), true ) && isset( self::post_types()[ $screen->post_type ] );
-			$term_screen = 'term.php' === $hook && isset( self::taxonomies()[ $screen->taxonomy ] );
+			$post_screen = in_array( $hook, array( 'post.php', 'post-new.php' ), true ) && isset( Seo::post_types()[ $screen->post_type ] );
+			$term_screen = 'term.php' === $hook && isset( Seo::taxonomies()[ $screen->taxonomy ] );
 			if ( ! $post_screen && ! $term_screen ) {
 				return;
 			}
@@ -112,7 +74,7 @@ class Seo_Admin {
 	 * @param string $post_type Post type.
 	 */
 	public function add_meta_box( $post_type ) {
-		if ( ! $this->plugin->languages()->has_targets() || ! isset( self::post_types()[ $post_type ] ) ) {
+		if ( ! $this->plugin->languages()->has_targets() || ! isset( Seo::post_types()[ $post_type ] ) ) {
 			return;
 		}
 		add_meta_box( 'shdt-seo', __( 'SEO title & description per language', 'shd-translator' ), array( $this, 'meta_box' ), $post_type, 'normal', 'default' );
@@ -136,7 +98,7 @@ class Seo_Admin {
 	 * Fields on the edit screens of the taxonomies.
 	 */
 	public function term_hooks() {
-		foreach ( array_keys( self::taxonomies() ) as $taxonomy ) {
+		foreach ( array_keys( Seo::taxonomies() ) as $taxonomy ) {
 			add_action( $taxonomy . '_edit_form', array( $this, 'term_box' ) );
 		}
 	}
@@ -312,7 +274,7 @@ class Seo_Admin {
 		if ( ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['shdt_seo_nonce'] ) ), 'shdt_seo_term_' . $term_id ) ) {
 			return;
 		}
-		if ( ! isset( self::taxonomies()[ $taxonomy ] ) || ! current_user_can( 'edit_term', $term_id ) ) {
+		if ( ! isset( Seo::taxonomies()[ $taxonomy ] ) || ! current_user_can( 'edit_term', $term_id ) ) {
 			return;
 		}
 		$data   = wp_unslash( $_POST['shdt_seo'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- cleaned by Seo::save().
@@ -354,10 +316,10 @@ class Seo_Admin {
 	 */
 	public static function types() {
 		$types = array();
-		foreach ( self::post_types() as $name => $object ) {
+		foreach ( Seo::post_types() as $name => $object ) {
 			$types[ 'post:' . $name ] = $object->labels->name;
 		}
-		foreach ( self::taxonomies() as $name => $object ) {
+		foreach ( Seo::taxonomies() as $name => $object ) {
 			$types[ 'term:' . $name ] = $object->labels->name;
 		}
 		if ( 'posts' === get_option( 'show_on_front' ) ) {
@@ -442,19 +404,11 @@ class Seo_Admin {
 			if ( $meta_query ) {
 				$args['meta_query'] = $meta_query; // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- admin screen, 20 rows.
 			}
-			$count = get_terms( array_merge( $args, array( 'fields' => 'count' ) ) );
-			$total = is_numeric( $count ) ? (int) $count : 0;
-			$ids   = get_terms(
-				array_merge(
-					$args,
-					array(
-						'fields' => 'ids',
-						'number' => self::PER_PAGE,
-						'offset' => ( max( 1, (int) $page ) - 1 ) * self::PER_PAGE,
-					)
-				)
-			);
-			foreach ( is_array( $ids ) ? $ids : array() as $id ) {
+			// All IDs, counted here: with a meta query, WordPress counts a term once per meta row.
+			$ids   = get_terms( array_merge( $args, array( 'fields' => 'ids' ) ) );
+			$ids   = is_array( $ids ) ? array_values( array_unique( array_map( 'intval', $ids ) ) ) : array();
+			$total = count( $ids );
+			foreach ( array_slice( $ids, ( max( 1, (int) $page ) - 1 ) * self::PER_PAGE, self::PER_PAGE ) as $id ) {
 				$objects[] = Seo::object( 'term', $id );
 			}
 		}

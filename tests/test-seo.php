@@ -100,6 +100,24 @@ shdt_assert_contains( $out, "<meta charset=\"UTF-8\">\n<title>Kontakt &lt;script
 $found = $p->seo_found();
 shdt_assert( null === $found['title'] && null === $found['description'], 'seo: missing title reported as null' );
 
+// An empty <title></title> (classic themes on the front page) is the document title too.
+$shdt_empty = '<html><head><meta charset="UTF-8"><title></title><link rel="icon" href="/i.png"></head><body><p>Hi</p></body></html>';
+list( $out, $p ) = shdt_seo_process(
+	$shdt_empty,
+	array(
+		'title'       => 'Eigener Titel',
+		'description' => 'Eigene Beschreibung',
+	)
+);
+shdt_assert_contains( $out, "<title>Eigener Titel</title>\n<meta name=\"description\" content=\"Eigene Beschreibung\"><link", 'seo: empty title filled, description after it' );
+shdt_assert( 1 === substr_count( $out, '<title>' ), 'seo: no second title for an empty one', $out );
+$found = $p->seo_found();
+shdt_assert( '' === $found['title'] && null === $found['description'], 'seo: empty title reported as empty', wp_json_encode( $found ) );
+list( $out, $p ) = shdt_seo_process( $shdt_empty, array() );
+shdt_assert_contains( $out, '<title></title><link', 'seo: empty title left alone without own title' );
+list( $out, $p ) = shdt_seo_process( '<html><head><title></title></head><body><svg><title></title></svg></body></html>', array( 'title' => 'T' ) );
+shdt_assert_contains( $out, '<svg><title></title></svg>', 'seo: empty SVG title untouched' );
+
 // A fragment without <head>: nothing is added anywhere.
 list( $out, $p ) = shdt_seo_process( '<p>Just a fragment</p>', array( 'description' => 'X' ) );
 shdt_assert( '<p>[de] Just a fragment</p>' === $out, 'seo: fragment untouched', $out );
