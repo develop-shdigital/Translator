@@ -16,7 +16,7 @@ defined( 'ABSPATH' ) || exit;
 class Seo_Admin {
 
 	const PAGE     = 'shd-translator-seo';
-	const PER_PAGE = 20;
+	const PER_PAGE = 50;
 
 	/**
 	 * Plugin.
@@ -134,13 +134,23 @@ class Seo_Admin {
 		$source    = Seo::source( $object );
 		$own       = Seo::get( $object );
 		$url       = $public ? Seo::url( $object ) : '';
+		$targets   = $languages->targets();
+		$autos     = array();
+		foreach ( array_keys( $targets ) as $code ) {
+			$autos[ $code ] = $this->automatic( $code, $source );
+		}
 		?>
-		<div class="shdt-seo">
+		<div class="shdt-seo" id="shdt-seo-fields">
 			<p class="shdt-seo__intro"><?php esc_html_e( 'What search engines show for this page in the other languages. Empty fields use the automatic translation of the original title and description.', 'shd-translator' ); ?></p>
 			<?php $this->original( $source ); ?>
-			<?php foreach ( $languages->targets() as $code => $lang ) : ?>
+			<?php
+			if ( array_filter( array_map( 'array_filter', $autos ) ) ) {
+				self::fill_button( '#shdt-seo-fields' );
+			}
+			?>
+			<?php foreach ( $targets as $code => $lang ) : ?>
 				<?php
-				$auto  = $this->automatic( $code, $source );
+				$auto  = $autos[ $code ];
 				$texts = isset( $own[ $code ] ) ? $own[ $code ] : array(
 					'title'       => '',
 					'description' => '',
@@ -161,6 +171,21 @@ class Seo_Admin {
 					<?php self::field_pair( 'shdt-seo-' . sanitize_html_class( $code ), 'shdt_seo[' . $code . ']', $texts, $auto, $source ); ?>
 				</fieldset>
 			<?php endforeach; ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Button that puts the automatic translation into every empty field below
+	 * $scope at once (not saved until the form is).
+	 *
+	 * @param string $scope CSS selector of the element holding the fields.
+	 */
+	public static function fill_button( $scope ) {
+		?>
+		<div class="shdt-seo__bulk">
+			<button type="button" class="button shdt-seo__fill" data-scope="<?php echo esc_attr( $scope ); ?>" data-done="<?php esc_attr_e( 'Filled – check the texts and save.', 'shd-translator' ); ?>" data-none="<?php esc_attr_e( 'Nothing to fill: every field already has a text or no automatic translation yet.', 'shd-translator' ); ?>"><?php esc_html_e( 'Fill all empty fields with the automatic translation', 'shd-translator' ); ?></button>
+			<span class="shdt-seo__fill-status" aria-live="polite"></span>
 		</div>
 		<?php
 	}

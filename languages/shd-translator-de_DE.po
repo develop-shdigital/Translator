@@ -78,8 +78,8 @@ msgid "Remove"
 msgstr "Entfernen"
 
 #: includes/admin/class-admin.php:148
-#: includes/admin/class-seo-admin.php:180
-#: includes/admin/views/seo.php:137
+#: includes/admin/class-seo-admin.php:205
+#: includes/admin/views/seo.php:142
 #: includes/admin/views/settings.php:72
 #: includes/admin/views/strings.php:83
 #: includes/class-frontend.php:444
@@ -316,7 +316,7 @@ msgstr "Beheben Sie die Ursache und klicken Sie dann auf „Gespeicherten Dienst
 #: includes/admin/class-admin.php:560
 #: includes/admin/class-admin.php:588
 #: includes/admin/class-admin.php:624
-#: includes/admin/class-seo-admin.php:435
+#: includes/admin/class-seo-admin.php:460
 msgid "Sorry, you are not allowed to do that."
 msgstr "Sie haben leider keine Berechtigung dafür."
 
@@ -324,67 +324,79 @@ msgstr "Sie haben leider keine Berechtigung dafür."
 msgid "Google Translate (in your browser)"
 msgstr "Google Übersetzer (in Ihrem Browser)"
 
-#: includes/admin/class-seo-admin.php:139
+#: includes/admin/class-seo-admin.php:144
 msgid "What search engines show for this page in the other languages. Empty fields use the automatic translation of the original title and description."
 msgstr "Was Suchmaschinen für diese Seite in den anderen Sprachen anzeigen. Leere Felder verwenden die automatische Übersetzung des ursprünglichen Titels und der Beschreibung."
 
-#: includes/admin/class-seo-admin.php:158
+#: includes/admin/class-seo-admin.php:168
 msgid "View page"
 msgstr "Seite ansehen"
 
-#: includes/admin/class-seo-admin.php:158
+#: includes/admin/class-seo-admin.php:168
 msgid "(opens in a new tab)"
 msgstr "(öffnet in einem neuen Tab)"
 
-#: includes/admin/class-seo-admin.php:175
+#: includes/admin/class-seo-admin.php:187
+msgid "Filled – check the texts and save."
+msgstr "Ausgefüllt – prüfen Sie die Texte und speichern Sie."
+
+#: includes/admin/class-seo-admin.php:187
+msgid "Nothing to fill: every field already has a text or no automatic translation yet."
+msgstr "Nichts auszufüllen: Alle Felder haben bereits einen Text oder noch keine automatische Übersetzung."
+
+#: includes/admin/class-seo-admin.php:187
+msgid "Fill all empty fields with the automatic translation"
+msgstr "Alle leeren Felder mit der automatischen Übersetzung füllen"
+
+#: includes/admin/class-seo-admin.php:200
 msgid "Tip: open the page once in another language – the original title and description and their automatic translations then show here."
 msgstr "Tipp: Öffnen Sie die Seite einmal in einer anderen Sprache – danach erscheinen hier der ursprüngliche Titel und die Beschreibung mit ihren automatischen Übersetzungen."
 
-#: includes/admin/class-seo-admin.php:181
-#: includes/admin/views/seo.php:179
+#: includes/admin/class-seo-admin.php:206
+#: includes/admin/views/seo.php:184
 #: includes/class-seo.php:344
 msgid "(no title)"
 msgstr "(kein Titel)"
 
-#: includes/admin/class-seo-admin.php:182
-#: includes/admin/views/seo.php:180
+#: includes/admin/class-seo-admin.php:207
+#: includes/admin/views/seo.php:185
 msgid "No meta description."
 msgstr "Keine Meta-Beschreibung."
 
-#: includes/admin/class-seo-admin.php:213
+#: includes/admin/class-seo-admin.php:238
 msgid "Automatic translation of the page title"
 msgstr "Automatische Übersetzung des Seitentitels"
 
-#: includes/admin/class-seo-admin.php:214
+#: includes/admin/class-seo-admin.php:239
 msgid "Automatic translation of the page description"
 msgstr "Automatische Übersetzung der Seitenbeschreibung"
 
-#: includes/admin/class-seo-admin.php:217
+#: includes/admin/class-seo-admin.php:242
 #: includes/class-frontend.php:450
 msgid "The original page has no description – write one here."
 msgstr "Die Originalseite hat keine Beschreibung – schreiben Sie hier eine."
 
-#: includes/admin/class-seo-admin.php:225
+#: includes/admin/class-seo-admin.php:250
 #: includes/class-frontend.php:448
 msgid "SEO title"
 msgstr "SEO-Titel"
 
-#: includes/admin/class-seo-admin.php:225
+#: includes/admin/class-seo-admin.php:250
 #: includes/class-frontend.php:449
 msgid "Meta description"
 msgstr "Meta-Beschreibung"
 
 #. translators: %d: number of characters
-#: includes/admin/class-seo-admin.php:226
+#: includes/admin/class-seo-admin.php:251
 #, php-format
 msgid "Search results usually show about %d characters."
 msgstr "Suchergebnisse zeigen meist etwa %d Zeichen."
 
-#: includes/admin/class-seo-admin.php:234
+#: includes/admin/class-seo-admin.php:259
 msgid "Start from the automatic translation"
 msgstr "Mit der automatischen Übersetzung beginnen"
 
-#: includes/admin/class-seo-admin.php:326
+#: includes/admin/class-seo-admin.php:351
 #: includes/class-seo.php:350
 msgid "Home page (latest posts)"
 msgstr "Startseite (neueste Beiträge)"
@@ -471,22 +483,22 @@ msgstr "Jede Seite hier hat eigene Texte in dieser Sprache."
 msgid "Nothing found."
 msgstr "Nichts gefunden."
 
-#: includes/admin/views/seo.php:136
+#: includes/admin/views/seo.php:141
 msgid "Page"
 msgstr "Seite"
 
 #. translators: %s: language name
-#: includes/admin/views/seo.php:172
+#: includes/admin/views/seo.php:177
 #: includes/class-frontend.php:510
 #, php-format
 msgid "View in %s"
 msgstr "Auf %s ansehen"
 
-#: includes/admin/views/seo.php:182
-msgid "Not seen yet – open the page once in another language to show the original texts and their automatic translations here."
-msgstr "Noch nicht erfasst – öffnen Sie die Seite einmal in einer anderen Sprache, dann erscheinen hier die Originaltexte mit ihren automatischen Übersetzungen."
+#: includes/admin/views/seo.php:187
+msgid "Not seen yet – open the page once in another language (Tools → “Translate the whole website” does this for all pages and posts). The original texts and their automatic translations then show here."
+msgstr "Noch nicht erfasst – öffnen Sie die Seite einmal in einer anderen Sprache (Werkzeuge → „Ganze Website übersetzen“ erledigt das für alle Seiten und Beiträge). Danach erscheinen hier die Originaltexte mit ihren automatischen Übersetzungen."
 
-#: includes/admin/views/seo.php:211
+#: includes/admin/views/seo.php:216
 #: includes/admin/views/settings.php:433
 msgid "Save changes"
 msgstr "Änderungen speichern"

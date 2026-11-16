@@ -1,4 +1,4 @@
-/* SHD Translator – SEO fields per language: character counters and "start from the automatic translation". */
+/* SHD Translator – SEO fields per language: character counters, "start from the automatic translation" (one field or all empty ones). */
 (function () {
 	'use strict';
 
@@ -17,6 +17,31 @@
 		counter.classList.toggle('is-long', count > limit);
 	}
 
+	// Like typing: counters, the editor's "unsaved changes" warning.
+	function set(field, text) {
+		field.value = text;
+		field.dispatchEvent(new Event('input', { bubbles: true }));
+		field.dispatchEvent(new Event('change', { bubbles: true }));
+	}
+
+	// Every empty field below the button's scope that has an automatic translation.
+	function fillAll(button) {
+		var root = document.querySelector(button.getAttribute('data-scope')) || document;
+		var filled = 0;
+		Array.prototype.forEach.call(root.querySelectorAll('.shdt-seo__copy'), function (copy) {
+			var field = document.getElementById(copy.getAttribute('data-target'));
+			var text = copy.getAttribute('data-text') || '';
+			if (field && text && field.value.trim() === '') {
+				set(field, text);
+				filled++;
+			}
+		});
+		var status = button.parentNode.querySelector('.shdt-seo__fill-status');
+		if (status) {
+			status.textContent = button.getAttribute(filled ? 'data-done' : 'data-none') || '';
+		}
+	}
+
 	function init() {
 		var fields = document.querySelectorAll('[data-shdt-limit]');
 		Array.prototype.forEach.call(fields, function (field) {
@@ -27,6 +52,12 @@
 		});
 
 		document.addEventListener('click', function (event) {
+			var all = event.target.closest ? event.target.closest('.shdt-seo__fill') : null;
+			if (all) {
+				event.preventDefault();
+				fillAll(all);
+				return;
+			}
 			var button = event.target.closest ? event.target.closest('.shdt-seo__copy') : null;
 			if (!button) {
 				return;
@@ -36,11 +67,27 @@
 			if (!field) {
 				return;
 			}
-			field.value = button.getAttribute('data-text') || '';
-			update(field);
-			field.dispatchEvent(new Event('change', { bubbles: true }));
+			set(field, button.getAttribute('data-text') || '');
 			field.focus();
 		});
+
+		// Translator → SEO: warn before leaving with filled or edited fields that are not saved.
+		var form = document.getElementById('shdt-seo-form');
+		if (form) {
+			var dirty = false;
+			form.addEventListener('input', function () {
+				dirty = true;
+			});
+			form.addEventListener('submit', function () {
+				dirty = false;
+			});
+			window.addEventListener('beforeunload', function (event) {
+				if (dirty) {
+					event.preventDefault();
+					event.returnValue = '';
+				}
+			});
+		}
 	}
 
 	if (document.readyState === 'loading') {

@@ -3,7 +3,7 @@
  * Plugin Name:       SHD Translator – Automatic AI Multilingual
  * Plugin URI:        https://github.com/develop-shdigital/Translator
  * Description:       Automatically translates your whole WordPress / Elementor website into multiple languages. Works out of the box without any API key, uses AI (Claude, DeepL, OpenAI) for top quality when a key is added, and ships an Elementor language switcher widget.
- * Version:           1.2.0
+ * Version:           1.2.1
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Author:            SH Digital
@@ -19,7 +19,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'SHDT_VERSION', '1.2.0' );
+define( 'SHDT_VERSION', '1.2.1' );
 define( 'SHDT_DB_VERSION', '2' );
 define( 'SHDT_FILE', __FILE__ );
 define( 'SHDT_DIR', plugin_dir_path( __FILE__ ) );

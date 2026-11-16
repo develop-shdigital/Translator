@@ -132,6 +132,8 @@ Code, preformatted text, SVG, scripts, styles and text areas are never translate
   - in *Translator → SEO*, a list of all pages of one language (filter by content type, search, "only without own texts"),
   - in the visual editor on the translated page.
 
+  *Fill all empty fields with the automatic translation* (in the list and in the box) puts the automatic title and description into every empty field at once, as a starting point to review and save. The list shows 50 pages at a time and asks before you leave it with unsaved changes. Pages that were not viewed in another language yet have no automatic texts to fill in; *Tools → Translate the whole website* views all pages and posts once.
+
   Empty fields use the automatic translation. Own texts replace the translated `<title>` and meta description, and Open Graph / Twitter titles and descriptions that repeated the original; a description is added to pages that have none. The original title and description (whatever the theme or an SEO plugin like Yoast or Rank Math outputs) are recorded when the page is first viewed in another language and shown next to the fields with their automatic translation. Counters show the usual limits of search results (60 characters for titles, 160 for descriptions).
 - Optional first-visit redirect to the browser language. It runs in the browser, so it works with page caches, and it skips search engine bots.
 - Search: visitors search in their own language; the query is translated back to find your content. Known words come from the translation memory; other short terms use the engine, limited per visitor and per day (`shdt_search_rate_limit`, `shdt_search_daily_limit`).

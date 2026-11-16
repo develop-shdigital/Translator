@@ -121,7 +121,7 @@ $shdt_name = $shdt_lang ? $shdt_targets[ $shdt_lang ]['name'] : '';
 			<?php if ( ! $shdt_result['objects'] ) : ?>
 				<p class="shdt-empty"><?php echo esc_html( $shdt_missing ? __( 'Every page here has its own texts in this language.', 'shd-translator' ) : __( 'Nothing found.', 'shd-translator' ) ); ?></p>
 			<?php else : ?>
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="shdt-seo-form">
 					<input type="hidden" name="action" value="shdt_save_seo">
 					<?php wp_nonce_field( 'shdt_save_seo' ); ?>
 					<input type="hidden" name="lang" value="<?php echo esc_attr( $shdt_lang ); ?>">
@@ -130,6 +130,11 @@ $shdt_name = $shdt_lang ? $shdt_targets[ $shdt_lang ]['name'] : '';
 					<input type="hidden" name="missing" value="<?php echo esc_attr( $shdt_missing ? '1' : '' ); ?>">
 					<input type="hidden" name="paged" value="<?php echo esc_attr( $shdt_page ); ?>">
 
+					<?php
+					if ( $shdt_auto ) {
+						Seo_Admin::fill_button( '#shdt-seo-form' );
+					}
+					?>
 					<table class="widefat shdt-seo-table">
 						<thead>
 							<tr>
@@ -179,7 +184,7 @@ $shdt_name = $shdt_lang ? $shdt_targets[ $shdt_lang ]['name'] : '';
 											<strong><?php echo esc_html( '' !== $shdt_source['title'] ? $shdt_source['title'] : __( '(no title)', 'shd-translator' ) ); ?></strong>
 											<span class="shdt-muted"><?php echo esc_html( '' !== $shdt_source['description'] ? $shdt_source['description'] : __( 'No meta description.', 'shd-translator' ) ); ?></span>
 										<?php else : ?>
-											<span class="shdt-muted"><?php esc_html_e( 'Not seen yet – open the page once in another language to show the original texts and their automatic translations here.', 'shd-translator' ); ?></span>
+											<span class="shdt-muted"><?php esc_html_e( 'Not seen yet – open the page once in another language (Tools → “Translate the whole website” does this for all pages and posts). The original texts and their automatic translations then show here.', 'shd-translator' ); ?></span>
 										<?php endif; ?>
 									</td>
 									<td class="shdt-seo shdt-seo-table__fields">
